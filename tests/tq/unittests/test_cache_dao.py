@@ -1,13 +1,13 @@
+import random
+from dataclasses import dataclass
 from typing import Optional
 from uuid import UUID, uuid4
 
-from dataclasses import dataclass
+import pytest
 from dataclasses_json import DataClassJsonMixin
 
 from tq.database import BaseEntity
-from tq.database.redis_dao import BaseDao, transactional, DaoContext
-
-import random
+from tq.database.redis_dao import BaseDao, DaoContext, transactional
 
 
 @dataclass
@@ -42,6 +42,7 @@ class MyDataDao(BaseDao):
         return ctx.get_list_length(id)
 
 
+@pytest.mark.integration
 def test_create_read_delete(db_pool):
     dao = MyDataDao(db_pool)
     data = MyData()
@@ -59,6 +60,7 @@ def test_create_read_delete(db_pool):
     assert read is None
 
 
+@pytest.mark.integration
 def test_create_read_delete_raw_data(db_pool):
     dao = MyDataDao(db_pool)
     data = bytes(bytearray([random.randint(0, 255) for _ in range(1024**2)]))
@@ -77,6 +79,7 @@ def test_create_read_delete_raw_data(db_pool):
     assert read is None
 
 
+@pytest.mark.integration
 def test_stack_push_pop(db_pool):
     dao = MyDataDao(db_pool)
     test_objects = [MyData(integer=random.randint(0, 65536)) for _ in range(256)]

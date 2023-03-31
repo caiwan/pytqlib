@@ -1,17 +1,14 @@
-import pytest
-
+import logging
 from contextlib import ExitStack
 from dataclasses import dataclass
-
 from unittest.mock import Mock
 
+import pytest
 import waiting
+
 from tq.job_system import JobManager
-
-from tq.task_dispacher import TaskDispatcher, task_handler, Task
 from tq.redis_task_queue import RedisTaskQueue
-
-import logging
+from tq.task_dispacher import Task, TaskDispatcher, task_handler
 
 LOGGER = logging.getLogger(__name__)
 
@@ -60,6 +57,7 @@ class DummyTaskHandler:
         self.mocks[2]()
 
 
+@pytest.mark.integration
 def test_task_dipatcher_dispatches_tasks_with_redis(
     task_dispatcher_with_redis: TaskDispatcher,
 ):
