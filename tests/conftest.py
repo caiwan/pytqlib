@@ -22,15 +22,22 @@ def pytest_addoption(parser):
     )
 
     parser.addoption(
-        "--unittest_only",
+        "--unittest",
         action="store_true",
         help="run only unittests",
     )
 
     parser.addoption(
-        "--integration_only",
-        action="store_true",
+        "--integration",
+        choices=["nodb", "redis", "mongo", "all"],
+        default=None,
         help="run only integration tests",
+    )
+
+    parser.addoption(
+        "--all",
+        action="store_true",
+        help="run all tests",
     )
 
 
@@ -43,29 +50,61 @@ def setup_logs(caplog):
 
 
 def pytest_collection_modifyitems(config, items):
-    if config.getoption("--unittest_only"):
+    # Mark db tests as integration first
+    for item in items:
+        if any(k in item.keywords for k in {"mongo", "redis"}):
+            item.keywords.append("integration")
+
+    # Disable slow tests
+    if not config.getoption("--runslow"):
+        skip_slow = pytest.mark.skip(reason="need --runslow option to run")
+        for item in items:
+            if "slow" in item.keywords:
+                item.add_marker(skip_slow)
+
+    if config.getoption("--all"):
+        return
+
+    # Select which tests to run
+    if config.getoption("--unittest"):
         # filter out integration tests
         skip_integration = pytest.mark.skip(
-            reason="need --integration_only option to run"
+            reason="need --integration option to run",
         )
         for item in items:
             if "integration" in item.keywords:
                 item.add_marker(skip_integration)
 
-    elif config.getoption("--integration_only"):
+    elif config.getoption("--integration"):
+        choice = config.getvalue("--integration")
+
         # filter out unittests
-        skip_unittest = pytest.mark.skip(reason="need --unittest_only option to run")
+        skip_unittest = pytest.mark.skip(
+            reason="need --unittest_only or --all option to run",
+        )
+
+        # filter out db tests
+        skip_redis = pytest.mark.skip(
+            reason="need --integration all or redis to run",
+        )
+
+        skip_mongo = pytest.mark.skip(
+            reason="need --integration all or mongo to run",
+        )
+
         for item in items:
             if "unittest" in item.keywords:
                 item.add_marker(skip_unittest)
 
-    if config.getoption("--runslow"):
-        # --runslow given in cli: do not skip slow tests
-        return
-    skip_slow = pytest.mark.skip(reason="need --runslow option to run")
-    for item in items:
-        if "slow" in item.keywords:
-            item.add_marker(skip_slow)
+            if choice == "redis" and "mongo" in item.keywords:
+                item.add_marker(skip_mongo)
+            elif choice == "mongo" and "redis" in item.keywords:
+                item.add_marker(skip_redis)
+            elif choice != "all" and any(
+                k in item.keywords for k in {"mongo", "redis"}
+            ):
+                item.add_marker(skip_mongo)
+                item.add_marker(skip_redis)
 
 
 @pytest.fixture(scope="function")

@@ -1,4 +1,4 @@
-name: Pytest with Docker Compose
+name: Execute checks on PR
 
 on:
   pull_request:
@@ -8,48 +8,101 @@ on:
     branches: [main]
 
 jobs:
-  pytest-no-docker:
+  quality-check:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
-    - name: Set up Python
-      uses: actions/setup-python@v2
-      with:
-        python-version: '3.x' # replace with your desired Python version
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-    - name: Run Pytest without Docker
-      run: pytest -m "not require_mysql"
+      - uses: actions/checkout@v2
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.9.12"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install .[tests]
 
-  pytest-docker:
+      - name: Check formatting with Black
+        run: black --check src tests
+
+      - name: Check code against Flake8
+        run: flake8 src tests
+
+      - name: Perform type check with MyPy
+        run: mypy --ignore-missing-imports .
+
+      - name: Fail if any of the checks fail
+        run: |
+          if [ ${{ steps.check-black.outcome }} == "failure" ] || [ ${{ steps.check-flake8.outcome }} == "failure" ] || [ ${{ steps.check-mypy.outcome }} == "failure" ]; then exit 1; fi
+
+  pytest-unittests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.9.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install .[tests]
+
+      - name: Run Pytest Unittests only
+        run: pytest --unittest --runslow
+
+      - name: Run Pytest Intrgration without DB
+        run: pytest --integration=nodb --runslow
+
+  pytest-docker-redis:
     runs-on: ubuntu-latest
     services:
-      mysql:
-        image: mysql:5.7
+      redis:
+        image: "redis:alpine"
+        options: "redis-server"
         env:
-          MYSQL_DATABASE: testdb
-          MYSQL_ROOT_PASSWORD: root_password
+          REDIS_REPLICATION_MODE: master
         ports:
-          - 3306:3306
-        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
+          - 6379:6379
     steps:
-    - uses: actions/checkout@v2
-    - name: Set up Python
-      uses: actions/setup-python@v2
-      with:
-        python-version: '3.x' # replace with your desired Python version
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-    - name: Start containers
-      run: docker-compose up -d
-    - name: Wait for containers to start
-      run: docker-compose ps && sleep 15
-    - name: Run Pytest with Docker
-      run: pytest -m "require_mysql"
-    - name: Stop containers
-      run: docker-compose down
+      - uses: actions/checkout@v2
 
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.9.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install .[tests]
+
+      - name: Run Pytest Redis only
+        run: pytest --integration=redis --runslow
+
+  pytest-docker-mongo:
+    runs-on: ubuntu-latest
+    services:
+      mongo:
+        image: mongo
+        env:
+          MONGO_INITDB_ROOT_USERNAME: root
+          MONGO_INITDB_ROOT_PASSWORD: toor
+        ports:
+          - 27017:27017
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.9.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install .[tests]
+
+      - name: Run Pytest MongoDB only
+        run: pytest --integration=mongo --runslow

@@ -15,6 +15,7 @@ def job_manager():
         yield job_manager
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize("job_count", [1, 10, 100, 1000])
 def test_job_system_single_task(job_manager, job_count):
     def log_fn(*a, **w) -> None:
@@ -41,6 +42,7 @@ def test_job_system_single_task(job_manager, job_count):
     )
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize("job_count", [1, 10, 100, 1000])
 def test_job_system_subtasks(job_manager, job_count):
     def log_fn(*a, **w) -> None:
