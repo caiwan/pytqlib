@@ -57,7 +57,7 @@ class DummyTaskHandler:
         self.mocks[2]()
 
 
-@pytest.mark.integration
+@pytest.mark.redis
 def test_task_dipatcher_dispatches_tasks_with_redis(
     task_dispatcher_with_redis: TaskDispatcher,
 ):

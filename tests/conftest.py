@@ -52,8 +52,11 @@ def setup_logs(caplog):
 def pytest_collection_modifyitems(config, items):
     # Mark db tests as integration first
     for item in items:
-        if any(k in item.keywords for k in {"mongo", "redis"}):
-            item.keywords.append("integration")
+        if (
+            any(k in item.keywords for k in {"mongo", "redis"})
+            and "ingegration" not in item.keywords
+        ):
+            item.add_marker(pytest.mark.integration())
 
     # Disable slow tests
     if not config.getoption("--runslow"):
@@ -96,15 +99,13 @@ def pytest_collection_modifyitems(config, items):
             if "unittest" in item.keywords:
                 item.add_marker(skip_unittest)
 
-            if choice == "redis" and "mongo" in item.keywords:
-                item.add_marker(skip_mongo)
-            elif choice == "mongo" and "redis" in item.keywords:
-                item.add_marker(skip_redis)
-            elif choice != "all" and any(
-                k in item.keywords for k in {"mongo", "redis"}
-            ):
-                item.add_marker(skip_mongo)
-                item.add_marker(skip_redis)
+            if "mongo" in item.keywords:
+                if choice == "redis" and choice != "all":
+                    item.add_marker(skip_mongo)
+
+            if "redis" in item.keywords:
+                if choice == "mongo" and choice != "all":
+                    item.add_marker(skip_redis)
 
 
 @pytest.fixture(scope="function")
