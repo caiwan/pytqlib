@@ -61,9 +61,9 @@ class Worker(threading.Thread):
         try:
             LOGGER.debug(f"Worker {self} starts")
             self._execute()
-        except:
+        except:  # noqa - Let log any exception occurring here
             LOGGER.error(
-                "Unhandled Exception had occurred in thread {self}", exc_info=True
+                f"Unhandled Exception had occurred in thread {self}", exc_info=True
             )
             raise
 

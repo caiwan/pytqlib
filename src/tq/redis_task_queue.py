@@ -1,17 +1,14 @@
+import base64
 import logging
+import pickle
+import uuid
+from contextlib import contextmanager
+from dataclasses import dataclass
 from typing import Iterator
 
-import uuid
-import pickle
-import base64
-from contextlib import contextmanager
-from tq.task_dispacher import BaseTaskQueue, Task
-
 from tq.database import BaseEntity
-from tq.database.redis_dao import BaseEntity, DaoContext, transactional, BaseDao
-
-
-from dataclasses import dataclass
+from tq.database.redis_dao import BaseDao, BaseEntity, DaoContext, transactional
+from tq.task_dispacher import BaseTaskQueue, Task
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +31,9 @@ class RedisTaskQueueDao(BaseDao):
     def pop(self, ctx: DaoContext) -> TaskEntity:
         task_serialized = ctx.list_pop_entity(self.task_queue_id)
         if task_serialized:
-            task_entity: TaskEntity = self._schema.load(task_serialized)
+            logger.debug(task_serialized)
+
+            task_entity: TaskEntity = self._schema.from_dict(task_serialized)
             return pickle.loads(base64.b64decode(task_entity.payload.encode()))
         return None
 
