@@ -47,6 +47,7 @@ def pytest_addoption(parser):
 @pytest.fixture(scope="function", autouse=True)
 def setup_logs(caplog):
     caplog.set_level(logging.INFO, logger="tq.job_system")
+    caplog.set_level(logging.INFO, logger="tq.task_dispacher")
 
 
 def pytest_collection_modifyitems(config, items):
