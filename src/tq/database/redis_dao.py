@@ -1,20 +1,14 @@
-import datetime
-import json
-import logging
 from contextlib import contextmanager
 from dataclasses import dataclass
-from enum import Enum
 from functools import wraps
 from typing import Any, Callable, Dict, Iterator, List, Optional, Set, Type, Union
 from uuid import UUID, uuid4
 
 import redis
-from dataclasses_json import DataClassJsonMixin
 from marshmallow import Schema
 
-from tq.database.utils import from_json, to_json
-
 from tq.database.db import BaseEntity
+from tq.database.utils import from_json, to_json
 
 # https://github.com/redis/redis-py
 # https://redis.io/commands
@@ -25,9 +19,9 @@ DEFAULT_BUCKET_SIZE = 10
 # TODO: Unfuck names [type] _ [what_operation] like hash_get_keys() or the other way aorund, make it uniform at least
 
 
-# TODO: Add db maintainer - aka save after X amoount of db commits
+# TODO: Add db maintainer - aka save after X amount of db commits
 @dataclass
-class DaoContext(object):
+class RedisDaoContext(object):
     # TODO: Properties + use proper setters
     shard_hint: Optional[str] = None
     watches: Optional[Set[str]] = None
@@ -41,10 +35,10 @@ class DaoContext(object):
     @contextmanager
     def create_sub_context(self, name_prefix):
         # TODO: When creating a new sub-ctx make it able to set certain flags for the transaction in the root context itself
-        yield DaoContext(self._db, name_prefix)
+        yield RedisDaoContext(self._db, name_prefix)
 
     def table(self, name_prefix):
-        return DaoContext(self._db, name_prefix)
+        return RedisDaoContext(self._db, name_prefix)
 
     @property
     def db(self):
@@ -246,66 +240,74 @@ class DaoContext(object):
             pass
 
 
-# TODO: Add a Read-only flag
 def transactional(fn: Callable) -> Callable:
     @wraps(fn)
     def tansaction_wrapper(*args, **kwargs):
         obj_self = args[0]
         connection_pool = obj_self._db_pool
 
-        ctx = kwargs.get(
-            "ctx",
-            DaoContext(
-                redis.Redis(connection_pool=connection_pool), obj_self._key_prefix
-            ),
-        )
+        ctx: RedisDaoContext = kwargs.get("ctx")
 
-        # TODO add params from ctx
-        return ctx._db.transaction(
-            lambda pipe: fn(obj_self, ctx, *args[1:], **kwargs),
-            value_from_callable=ctx.value_from_callable,
-            shard_hint=ctx.shard_hint,
-            watches=ctx.watches,
-            watch_delay=ctx.watch_delay,
-        )
+        if isinstance(ctx, RedisDaoContext):
+            ctx = ctx.create_sub_context(obj_self._key_prefix)
+            # TODO add params from ctx
+            return fn(obj_self, ctx, *args[1:], **kwargs)
+        else:
+            ctx = RedisDaoContext(
+                redis.Redis(connection_pool=connection_pool), obj_self._key_prefix
+            )
+
+            # TODO add params from ctx
+            return ctx._db.transaction(
+                lambda pipe: fn(obj_self, ctx, *args[1:], **kwargs),
+                value_from_callable=ctx.value_from_callable,
+                shard_hint=ctx.shard_hint,
+                watches=ctx.watches,
+                watch_delay=ctx.watch_delay,
+            )
 
     return tansaction_wrapper
 
 
-class BaseDao:
+class BaseRedisDao:
     def __init__(
-        self, db_pool: redis.ConnectionPool, schema: Type[Schema], key_prefix: str = ""
+        self,
+        db_pool: redis.ConnectionPool,
+        schema: Type[Schema],
+        key_prefix: str = "",
     ):
         super().__init__()
         self._db_pool: redis.ConnectionPool = db_pool
-        self._key_prefix: redis.ConnectionPool = key_prefix
+        self._key_prefix: str = key_prefix
         self._schema: Type[Schema] = schema
 
     @transactional
-    def create_or_update(self, ctx: DaoContext, obj: BaseEntity) -> UUID:
+    def create_or_update(self, ctx: RedisDaoContext, obj: BaseEntity) -> UUID:
         return ctx.create_or_update(obj.to_dict(), obj.id)
 
     @transactional
-    def get_entity(self, ctx: DaoContext, id: Optional[Union[UUID, str]]) -> BaseEntity:
+    def get_entity(
+        self, ctx: RedisDaoContext, id: Optional[Union[UUID, str]]
+    ) -> BaseEntity:
         data = ctx.get_entity(id)
         return self._schema.load(data) if data else None
 
     @transactional
-    def get_all(self, ctx: DaoContext) -> List[BaseEntity]:
+    def get_all(self, ctx: RedisDaoContext) -> List[BaseEntity]:
         return list([entity for entity in self.iterate_all(ctx)])
 
     @transactional
-    def iterate_all(self, ctx: DaoContext) -> Iterator[BaseEntity]:
+    def iterate_all(self, ctx: RedisDaoContext) -> Iterator[BaseEntity]:
         for entity in ctx.iterate_all_entities():
             yield self._schema.load(entity) if entity else None
 
     @transactional
-    def iterate_all_keys(self, ctx: DaoContext) -> Iterator[BaseEntity]:
+    def iterate_all_keys(self, ctx: RedisDaoContext) -> Iterator[BaseEntity]:
         for key in ctx.iterate_all_keys():
             yield key
 
     @transactional
-    def delete(self, ctx: DaoContext, id: Optional[Union[UUID, str]]):
+    def delete(self, ctx: RedisDaoContext, id: Optional[Union[UUID, str]]):
         return ctx.delete(id)
 
     @property

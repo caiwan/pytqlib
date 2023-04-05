@@ -7,7 +7,12 @@ from dataclasses import dataclass
 from typing import Iterator
 
 from tq.database import BaseEntity
-from tq.database.redis_dao import BaseDao, BaseEntity, DaoContext, transactional
+from tq.database.redis_dao import (
+    BaseEntity,
+    BaseRedisDao,
+    RedisDaoContext,
+    transactional,
+)
 from tq.task_dispacher import BaseTaskQueue, Task
 
 logger = logging.getLogger(__name__)
@@ -18,7 +23,7 @@ class TaskEntity(BaseEntity):
     payload: str = ""
 
 
-class RedisTaskQueueDao(BaseDao):
+class RedisTaskQueueDao(BaseRedisDao):
     def __init__(self, db_pool, task_queue_id=None):
         super().__init__(db_pool, TaskEntity.schema(), key_prefix="task_queue")
         self.task_queue_id = task_queue_id if task_queue_id else uuid.uuid4()
@@ -28,7 +33,7 @@ class RedisTaskQueueDao(BaseDao):
         self.push_raw(payload)
 
     @transactional
-    def pop(self, ctx: DaoContext) -> TaskEntity:
+    def pop(self, ctx: RedisDaoContext) -> TaskEntity:
         task_serialized = ctx.list_pop_entity(self.task_queue_id)
         if task_serialized:
             logger.debug(task_serialized)
@@ -38,7 +43,7 @@ class RedisTaskQueueDao(BaseDao):
         return None
 
     @transactional
-    def push_raw(self, ctx: DaoContext, payload: str):
+    def push_raw(self, ctx: RedisDaoContext, payload: str):
         task_entity = TaskEntity(id=uuid.uuid4(), payload=payload)
         ctx.list_push_entity(self.task_queue_id, task_entity.to_dict())
 

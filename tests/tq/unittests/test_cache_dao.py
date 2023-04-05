@@ -7,7 +7,7 @@ import pytest
 from dataclasses_json import DataClassJsonMixin
 
 from tq.database import BaseEntity
-from tq.database.redis_dao import BaseDao, DaoContext, transactional
+from tq.database.redis_dao import BaseRedisDao, RedisDaoContext, transactional
 
 
 @dataclass
@@ -17,28 +17,28 @@ class MyData(DataClassJsonMixin):
     string: str = "test_str"
 
 
-class MyDataDao(BaseDao):
+class MyDataDao(BaseRedisDao):
     def __init__(self, db_pool):
         super().__init__(db_pool, MyData.schema(), key_prefix="my_data")
 
     @transactional
-    def save_raw_data(self, ctx: DaoContext, id: UUID, data: bytes) -> UUID:
+    def save_raw_data(self, ctx: RedisDaoContext, id: UUID, data: bytes) -> UUID:
         return ctx.set(id, data)
 
     @transactional
-    def load_raw_data(self, ctx: DaoContext, id: UUID) -> Optional[bytes]:
+    def load_raw_data(self, ctx: RedisDaoContext, id: UUID) -> Optional[bytes]:
         return ctx.get(id)
 
     @transactional
-    def push(self, ctx: DaoContext, id: UUID, obj: MyData):
+    def push(self, ctx: RedisDaoContext, id: UUID, obj: MyData):
         ctx.list_push_entity(id, obj.to_dict())
 
     @transactional
-    def pop(self, ctx: DaoContext, id: UUID) -> MyData:
+    def pop(self, ctx: RedisDaoContext, id: UUID) -> MyData:
         return self._schema.load(ctx.list_pop_entity(id))
 
     @transactional
-    def size(self, ctx: DaoContext, id: UUID) -> int:
+    def size(self, ctx: RedisDaoContext, id: UUID) -> int:
         return ctx.get_list_length(id)
 
 

@@ -129,3 +129,6 @@ def task_dispatcher():
         dispatcher = stack.enter_context(TaskDispatcher(task_queue, job_manager))
         yield dispatcher
         dispatcher.terminate()
+
+
+# TODO: Add an in-memory fixture for redis
