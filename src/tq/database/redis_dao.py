@@ -229,7 +229,9 @@ class RedisDaoContext(object):
         name = self._name(id)
         return self._db.scard(name) if self._db.exists(name) else 0
 
-    # TODO: Add Optional expiration time - maybe through soem decoration like AOP?
+    def set_expiration_time(self, id: Optional[Union[UUID, str]], seconds: int):
+        name = self._name(id)
+        self._db.expire(name, seconds)
 
     def trigger_db_cleanup(self):
         try:

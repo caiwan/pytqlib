@@ -1,46 +1,108 @@
-from ast import List
-from ctypes import Union
+from contextlib import ExitStack, contextmanager
+from copy import deepcopy
 from functools import wraps
-from typing import Callable, Iterator, Optional, Type
+from typing import Callable, Iterator, List, Optional, Type, Union
 from uuid import UUID
 
-import pymongo
+import bson
 from marshmallow import Schema
+from pymongo import MongoClient, client_session, collection, errors
 
 from tq.database.db import AbstractDao, BaseEntity
+from tq.database.utils import from_json, to_json
 
 
 class MongoDaoContext:
-    pass
+    def __init__(self, client: MongoClient, key_prefix: str):
+        self._client = client
+        self._database = self._client.get_default_database()
+        self._collection = self._database.get_collection(key_prefix)
 
+        self._key_prefix = key_prefix
 
-# TODO - id is `_id` in mongo
+    def __enter__(self):
+        self._session = self.client.start_session()
+        self._session.start_transaction()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self._session.end_session()
+        pass
+
+    @property
+    def session(self) -> client_session.ClientSession:
+        return self._session
+
+    @property
+    def client(self) -> MongoClient:
+        return self._client
+
+    @property
+    def collection(self) -> collection.Collection:
+        return self._collection
+
+    def create_sub_context(self, key_prefix: str) -> "MongoDaoContext":
+        return MongoDaoContext(self._connection_pool_manager, key_prefix)
+
+    def create_or_update(self, obj: BaseEntity) -> UUID:
+        data = obj.to_dict()
+        result = self.collection.update_one(
+            {"_id": bson.Binary.from_uuid(obj.id)},
+            {"$set": from_json(to_json(data))},
+            upsert=True,
+        )
+        if result.upserted_id:
+            obj.id = bson.Binary.as_uuid(result.upserted_id)
+
+        return obj.id
+
+    def get_entity(self, id: Optional[Union[UUID, str]]) -> BaseEntity:
+        result = self.collection.find_one({"_id": bson.Binary.from_uuid(id)})
+        if result:
+            result["id"] = bson.Binary.as_uuid(result["_id"])
+            del result["_id"]
+        return result
+
+    def iterate_entities(self) -> Iterator[BaseEntity]:
+        for item in self.collection.find({}):
+            if item:
+                item["id"] = bson.Binary.as_uuid(item["_id"])
+                del item["_id"]
+                yield item
+
+    def iterate_all_keys(self) -> Iterator[UUID]:
+        for item in self.collection.find({}, {"_id": 1}):
+            if item:
+                yield bson.Binary.as_uuid(item["_id"])
+
+    def delete_entity(self, id: Optional[Union[UUID, str]]):
+        self.collection.delete_one({"_id": bson.Binary.from_uuid(id)})
 
 
 def transactional(fn: Callable) -> Callable:
     @wraps(fn)
     def tansaction_wrapper(*args, **kwargs):
         obj_self = args[0]
-        client: pymongo.MongoClient = obj_self._db_client
-
-        # TODO: Write AN helper for this
-
-        # with client.start_session() as session:
-        #     with session.start_transaction():
-        #         return fn(obj_self, *args[1:], session=session, **kwargs)
-
+        key_prefix = obj_self._key_prefix
         ctx: MongoDaoContext = kwargs.get("ctx")
-        # Allow nesting
+        client = obj_self._client
+
         if isinstance(ctx, MongoDaoContext):
             ctx = ctx.create_sub_context(obj_self._key_prefix)
             # TODO add params from ctx
             return fn(obj_self, *args[1:], ctx=ctx, **kwargs)
         else:
-            ctx = MongoDaoContext(client)
-            with ctx:
-                return fn(obj_self, *args[1:], ctx=ctx, **kwargs)
-                # https://pymongo.readthedocs.io/en/stable/api/pymongo/client_session.html
-                # Use with_transacton
+            # TODO: set retry attempts
+            for attempt in range(3):
+                try:
+                    ctx = MongoDaoContext(client, key_prefix)
+                    with ctx:
+                        # TODO add params from ctx
+                        return fn(obj_self, *args[1:], ctx=ctx, **kwargs)
+
+                except errors.PyMongoError as e:
+                    if attempt == 2:
+                        raise e
 
     return tansaction_wrapper
 
@@ -48,65 +110,38 @@ def transactional(fn: Callable) -> Callable:
 class BaseMongoDao(AbstractDao):
     def __init__(
         self,
-        client: pymongo.MongoClient,
+        client: MongoClient,
         schema: Type[Schema],
         key_prefix: str,
     ):
         super().__init__(schema, key_prefix)
-        self._db_client = client
+        self._client = client
 
-    def create_or_update(self, obj: BaseEntity, *args, **kwargs) -> UUID:
-        pass
+    @transactional
+    def create_or_update(self, obj: BaseEntity, ctx: MongoDaoContext) -> UUID:
+        return ctx.create_or_update(obj)
 
-    def get_entity(self, id: Optional[Union[UUID, str]], *args, **kwargs) -> BaseEntity:
-        pass
+    @transactional
+    def get_entity(
+        self, id: Optional[Union[UUID, str]], ctx: MongoDaoContext
+    ) -> BaseEntity:
+        result = ctx.get_entity(id)
+        return self.schema.from_dict(result) if result else None
 
-    def get_all(self, *args, **kwargs) -> List[BaseEntity]:
-        pass
+    @transactional
+    def get_all(self, ctx: MongoDaoContext) -> List[BaseEntity]:
+        return [self.schema.from_dict(item) for item in ctx.iterate_entities()]
 
-    def iterate_all(self, *args, **kwargs) -> Iterator[BaseEntity]:
-        pass
+    @transactional
+    def iterate_all(self, ctx: MongoDaoContext) -> Iterator[BaseEntity]:
+        for item in ctx.iterate_entities():
+            yield self.schema.from_dict(item)
 
-    def iterate_all_keys(self, *args, **kwargs) -> Iterator[BaseEntity]:
-        pass
+    @transactional
+    def iterate_all_keys(self, ctx: MongoDaoContext) -> Iterator[BaseEntity]:
+        for key in ctx.iterate_all_keys():
+            yield key
 
-    def delete(self, id: Optional[Union[UUID, str]], *args, **kwargs):
-        pass
-
-    # def __init__(
-    #     self, db_name, collection_name, mongo_uri="mongodb://localhost:27017/"
-    # ):
-    #     self.client = pymongo.MongoClient(mongo_uri)
-    #     self.db = self.client[db_name]
-    #     self.collection = self.db[collection_name]
-
-    # def create(self, entity):
-    #     entity_json = entity.to_json()
-    #     self.collection.insert_one(entity_json)
-
-    # def read(self, entity_id):
-    #     entity_json = self.collection.find_one({"_id": entity_id})
-    #     if entity_json:
-    #         return Entity.from_json(entity_json)
-    #     return None
-
-    # def update(self, entity_id, entity):
-    #     entity_json = entity.to_json()
-    #     self.collection.update_one({"_id": entity_id}, {"$set": entity_json})
-
-    # def delete(self, entity_id):
-    #     self.collection.delete_one({"_id": entity_id})
-
-    # def count(self):
-    #     return self.collection.count_documents({})
-
-    # def get_keys(self):
-    #     return self.collection.distinct("_id")
-
-    # def start_transaction(self):
-    #     return self.client.start_session()
-
-    # def with_transaction(self, callback):
-    #     with self.client.start_session() as session:
-    #         with session.start_transaction():
-    #             callback(session)
+    @transactional
+    def delete(self, id: Optional[Union[UUID, str]], ctx: MongoDaoContext):
+        ctx.delete_entity(id)

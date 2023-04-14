@@ -26,8 +26,8 @@ class CustomJSONEncoder(json.JSONEncoder):
         return json.JSONEncoder.default(self, obj)
 
 
-def to_json(obj: Any) -> str:
-    return json.dumps(obj, cls=CustomJSONEncoder)
+def to_json(obj: Any) -> bytes:
+    return json.dumps(obj, cls=CustomJSONEncoder).encode()
 
 
 def from_json(_json: Optional[bytes]) -> Optional[Any]:
