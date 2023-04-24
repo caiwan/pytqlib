@@ -32,3 +32,6 @@ def to_json(obj: Any) -> bytes:
 
 def from_json(_json: Optional[bytes]) -> Optional[Any]:
     return json.loads(_json.decode()) if _json else None
+
+
+# TODO: Transactional

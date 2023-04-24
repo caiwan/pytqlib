@@ -44,3 +44,17 @@ class AbstractDao(abc.ABC):
     @property
     def schema(self):
         return self._schema
+
+
+class AbstractFsDao(abc.ABC):
+    @abc.abstractmethod
+    def store(self, data, filename):
+        pass
+
+    @abc.abstractmethod
+    def load(self, file_id):
+        pass
+
+    @abc.abstractmethod
+    def delete(self, file_id):
+        pass

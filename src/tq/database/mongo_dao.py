@@ -79,6 +79,7 @@ class MongoDaoContext:
         self.collection.delete_one({"_id": bson.Binary.from_uuid(id)})
 
 
+# TODO: Unify transactions
 def transactional(fn: Callable) -> Callable:
     @wraps(fn)
     def tansaction_wrapper(*args, **kwargs):
