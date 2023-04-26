@@ -1,8 +1,10 @@
 import abc
+from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Iterator, List, Optional, Type, Union
+from io import BytesIO, StringIO
+from typing import Iterable, Iterator, List, Optional, Type, Union
+from uuid import UUID
 
-from click import UUID
 from dataclasses_json import DataClassJsonMixin
 from marshmallow import Schema
 
@@ -57,4 +59,12 @@ class AbstractFsDao(abc.ABC):
 
     @abc.abstractmethod
     def delete(self, file_id):
+        pass
+
+    @abc.abstractmethod
+    def iterate_filenames(self) -> Iterable[str]:
+        pass
+
+    @abc.abstractmethod
+    def open(self, filename: str, mode: str = "rb") -> Union[BytesIO, StringIO]:
         pass

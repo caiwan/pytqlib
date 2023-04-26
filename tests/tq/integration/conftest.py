@@ -11,7 +11,7 @@ DB_PORT = 6379
 DB_HOST = "localhost"
 
 
-MONGO_CONNECTION_STRING = "mongodb://root:toor@localhost:27017/test_{}?authSource=admin"
+MONGO_CONNECTION_STRING = "mongodb://root:toor@localhost:27017/test?authSource=amdin"
 
 
 @pytest.fixture(scope="function")
@@ -33,12 +33,10 @@ def mongodb_client() -> MongoClient:
 
     yield client
 
-    # TODO: Unable to clean up after tests
+    db = client.get_default_database()
+    # client.drop_database(db)
 
-    # for db_name in client.list_database_names():
-    #     if db_name not in ("admin", "local"):
-    #         database = client[db_name]
-    #         for collection_name in database.list_collection_names():
-    #             database.drop_collection(collection_name)
+    for collection_name in db.list_collection_names():
+        db.drop_collection(collection_name)
 
-    # client.close()
+    client.close()
