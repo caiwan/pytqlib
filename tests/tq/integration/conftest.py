@@ -17,13 +17,13 @@ PLACEHOLDER = "_placeholder"
 
 
 @pytest.fixture(scope="function")
-def db_pool() -> redis.ConnectionPool:
+def redis_db() -> redis.ConnectionPool:
     return redis.ConnectionPool(host=DB_HOST, port=DB_PORT, db=0)
 
 
 @pytest.fixture(scope="function")
-def db_connection(db_pool) -> redis.Redis:
-    db = redis.Redis(connection_pool=db_pool)
+def redis_db_connection(redis_db) -> redis.Redis:
+    db = redis.Redis(connection_pool=redis_db)
     yield db
     db.flushall()
 

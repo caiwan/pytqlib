@@ -14,8 +14,8 @@ LOGGER = logging.getLogger(__name__)
 
 
 @pytest.fixture(scope="function")
-def task_dispatcher_with_redis(db_pool):
-    task_queue = RedisTaskQueue(db_pool)
+def task_dispatcher_with_redis(redis_db):
+    task_queue = RedisTaskQueue(redis_db)
     with ExitStack() as stack:
         job_manager = stack.enter_context(JobManager())
         dispatcher = stack.enter_context(TaskDispatcher(task_queue, job_manager))

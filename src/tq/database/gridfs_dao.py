@@ -110,7 +110,10 @@ class BucketGridFsDao(AbstractFsDao):
         elif "w" in mode or "a" in mode:
             # Create file
             if "a" in mode:
-                file_obj = self._bucket.open_download_stream_by_name(filename)
+                # TODO: Add Append mode
+                # file_obj = self._bucket.open_download_stream_by_name(filename)
+                with self._bucket.open_upload_stream(filename=filename) as file_obj:
+                    yield file_obj
 
             else:
                 self._bucket.upload_from_stream(filename, io.BytesIO())

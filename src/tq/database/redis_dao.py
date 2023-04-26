@@ -246,7 +246,7 @@ def transactional(fn: Callable) -> Callable:
     @wraps(fn)
     def tansaction_wrapper(*args, **kwargs):
         obj_self = args[0]
-        connection_pool = obj_self._db_pool
+        connection_pool = obj_self._redis_db
 
         ctx: RedisDaoContext = kwargs.get("ctx")
 
@@ -274,12 +274,12 @@ def transactional(fn: Callable) -> Callable:
 class BaseRedisDao:
     def __init__(
         self,
-        db_pool: redis.ConnectionPool,
+        redis_db: redis.ConnectionPool,
         schema: Type[Schema],
         key_prefix: str = "",
     ):
         super().__init__()
-        self._db_pool: redis.ConnectionPool = db_pool
+        self._redis_db: redis.ConnectionPool = redis_db
         self._key_prefix: str = key_prefix
         self._schema: Type[Schema] = schema
 

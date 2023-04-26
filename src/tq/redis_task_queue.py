@@ -24,8 +24,8 @@ class TaskEntity(BaseEntity):
 
 
 class RedisTaskQueueDao(BaseRedisDao):
-    def __init__(self, db_pool, task_queue_id=None):
-        super().__init__(db_pool, TaskEntity.schema(), key_prefix="task_queue")
+    def __init__(self, redis_db, task_queue_id=None):
+        super().__init__(redis_db, TaskEntity.schema(), key_prefix="task_queue")
         self.task_queue_id = task_queue_id if task_queue_id else uuid.uuid4()
 
     def push(self, task: Task):
@@ -49,8 +49,8 @@ class RedisTaskQueueDao(BaseRedisDao):
 
 
 class RedisTaskQueue(BaseTaskQueue):
-    def __init__(self, db_pool):
-        self._dao = RedisTaskQueueDao(db_pool)
+    def __init__(self, redis_db):
+        self._dao = RedisTaskQueueDao(redis_db)
 
     def put(self, task: Task):
         self._dao.push(task)

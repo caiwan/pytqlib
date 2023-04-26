@@ -18,8 +18,8 @@ class MyData(DataClassJsonMixin):
 
 
 class MyDataDao(BaseRedisDao):
-    def __init__(self, db_pool):
-        super().__init__(db_pool, MyData.schema(), key_prefix="my_data")
+    def __init__(self, redis_db):
+        super().__init__(redis_db, MyData.schema(), key_prefix="my_data")
 
     @transactional
     def save_raw_data(self, ctx: RedisDaoContext, id: UUID, data: bytes) -> UUID:
@@ -42,9 +42,9 @@ class MyDataDao(BaseRedisDao):
         return ctx.get_list_length(id)
 
 
-@pytest.mark.integration
-def test_create_read_delete(db_pool):
-    dao = MyDataDao(db_pool)
+@pytest.mark.redis
+def test_create_read_delete(redis_db):
+    dao = MyDataDao(redis_db)
     data = MyData()
     obj_id = dao.create_or_update(data)
     assert obj_id is not None
@@ -60,9 +60,9 @@ def test_create_read_delete(db_pool):
     assert read is None
 
 
-@pytest.mark.integration
-def test_create_read_delete_raw_data(db_pool):
-    dao = MyDataDao(db_pool)
+@pytest.mark.redis
+def test_create_read_delete_raw_data(redis_db):
+    dao = MyDataDao(redis_db)
     data = bytes(bytearray([random.randint(0, 255) for _ in range(1024**2)]))
 
     obj_id = dao.save_raw_data(None, data)
@@ -79,9 +79,9 @@ def test_create_read_delete_raw_data(db_pool):
     assert read is None
 
 
-@pytest.mark.integration
-def test_stack_push_pop(db_pool):
-    dao = MyDataDao(db_pool)
+@pytest.mark.redis
+def test_stack_push_pop(redis_db):
+    dao = MyDataDao(redis_db)
     test_objects = [MyData(integer=random.randint(0, 65536)) for _ in range(256)]
 
     list_id = uuid4()
