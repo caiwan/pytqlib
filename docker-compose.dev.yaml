@@ -6,7 +6,7 @@ services:
     command: redis-server
     volumes:
       - redis-data:/var/lib/redis
-      - ./docker/redis.conf:/usr/local/etc/redis/redis.conf
+      # - ./docker/redis/redis.conf:/usr/local/etc/redis/redis.conf
     environment:
       - REDIS_REPLICATION_MODE=master
     networks:
@@ -35,8 +35,10 @@ services:
     environment:
       MONGO_INITDB_ROOT_USERNAME: root
       MONGO_INITDB_ROOT_PASSWORD: toor
+      MONGO_INITDB_DATABASE: test
     volumes:
       - mongo-data:/data/db
+      # - ./docker/mongo/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
     ports:
       - 27017:27017
     networks:
