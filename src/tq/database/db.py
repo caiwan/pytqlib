@@ -1,8 +1,8 @@
 import abc
 from contextlib import contextmanager
 from dataclasses import dataclass
-from io import BytesIO, StringIO
-from typing import Iterable, Iterator, List, Optional, Type, Union
+from io import IOBase
+from typing import Any, Iterable, Iterator, List, Optional, Type, Union
 from uuid import UUID
 
 from dataclasses_json import DataClassJsonMixin
@@ -50,15 +50,23 @@ class AbstractDao(abc.ABC):
 
 class AbstractFsDao(abc.ABC):
     @abc.abstractmethod
-    def store(self, data, filename):
+    def store(self, filename: str, data: Any) -> str:
         pass
 
     @abc.abstractmethod
-    def load(self, file_id):
+    def load(self, filename: str) -> bytes:
         pass
 
     @abc.abstractmethod
-    def delete(self, file_id):
+    def delete(self, filename: str) -> bool:
+        pass
+
+    @abc.abstractmethod
+    def load_by_id(self, file_id: str) -> bytes:
+        pass
+
+    @abc.abstractmethod
+    def delete_by_id(self, file_id: str) -> bool:
         pass
 
     @abc.abstractmethod
@@ -66,5 +74,9 @@ class AbstractFsDao(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def open(self, filename: str, mode: str = "rb") -> Union[BytesIO, StringIO]:
+    def find_file_id(self, filename: str) -> str:
+        pass
+
+    @abc.abstractmethod
+    def open(self, filename: str, mode: str = "rb") -> IOBase:
         pass

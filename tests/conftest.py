@@ -1,4 +1,7 @@
 import logging
+import os
+import pathlib
+import tempfile
 from contextlib import ExitStack
 
 import fakeredis
@@ -126,3 +129,17 @@ def fakeredis_connection():
     redis = fakeredis.FakeStrictRedis(version=6)
     yield redis
     redis.flushall()
+
+
+@pytest.fixture(scope="function")
+def generate_random_data():
+    return lambda size: os.urandom(size)
+
+
+@pytest.fixture(scope="function")
+def generate_random_file(generate_random_data) -> pathlib.Path:
+    with tempfile.NamedTemporaryFile(delete=False) as tmp:
+        tmp.write(generate_random_data(3 * 1024**2))
+        tmp_file = pathlib.Path(tmp.name)
+        yield tmp_file
+        tmp_file.unlink()
