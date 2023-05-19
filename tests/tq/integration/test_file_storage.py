@@ -3,8 +3,8 @@ from uuid import uuid4
 import pytest
 from gridfs.errors import NoFile
 
-from tq.database.db import AbstractFsDao
 from tq.database.gridfs_dao import GridFsDao
+from tq.database.redis_file_cache import RedisFileFsDao
 
 
 @pytest.fixture(scope="function")
@@ -20,13 +20,12 @@ def test_file_name() -> str:
 
 @pytest.fixture
 def gridfs_dao(mongodb_client):
-    dao = GridFsDao(mongodb_client)
-    yield dao
+    yield GridFsDao(mongodb_client)
 
 
 @pytest.fixture
-def redis_dao():
-    yield None
+def redis_dao(redis_db):
+    yield RedisFileFsDao(redis_db)
 
 
 def do_store_and_load(dao, test_data, test_file_name):
