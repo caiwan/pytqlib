@@ -22,23 +22,23 @@ class MyDataDao(BaseRedisDao):
         super().__init__(db_pool, MyData.schema(), key_prefix="my_data")
 
     @transactional
-    def save_raw_data(self, ctx: RedisDaoContext, id: UUID, data: bytes) -> UUID:
+    def save_raw_data(self, id: UUID, data: bytes, ctx: RedisDaoContext,) -> UUID:
         return ctx.set(id, data)
 
     @transactional
-    def load_raw_data(self, ctx: RedisDaoContext, id: UUID) -> Optional[bytes]:
+    def load_raw_data(self, id: UUID, ctx: RedisDaoContext) -> Optional[bytes]:
         return ctx.get(id)
 
     @transactional
-    def push(self, ctx: RedisDaoContext, id: UUID, obj: MyData):
+    def push(self, id: UUID, obj: MyData, ctx: RedisDaoContext,):
         ctx.list_push_entity(id, obj.to_dict())
 
     @transactional
-    def pop(self, ctx: RedisDaoContext, id: UUID) -> MyData:
+    def pop(self, id: UUID, ctx: RedisDaoContext,) -> MyData:
         return self._schema.load(ctx.list_pop_entity(id))
 
     @transactional
-    def size(self, ctx: RedisDaoContext, id: UUID) -> int:
+    def size(self, id: UUID, ctx: RedisDaoContext) -> int:
         return ctx.get_list_length(id)
 
 

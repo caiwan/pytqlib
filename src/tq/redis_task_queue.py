@@ -43,7 +43,7 @@ class RedisTaskQueueDao(BaseRedisDao):
         return None
 
     @transactional
-    def push_raw(self, ctx: RedisDaoContext, payload: str):
+    def push_raw(self, payload: str, ctx: RedisDaoContext):
         task_entity = TaskEntity(id=uuid.uuid4(), payload=payload)
         ctx.list_push_entity(self.task_queue_id, task_entity.to_dict())
 

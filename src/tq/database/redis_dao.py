@@ -7,7 +7,7 @@ from uuid import UUID, uuid4
 import redis
 from marshmallow import Schema
 
-from tq.database.db import BaseEntity
+from tq.database.db import AbstractDao, BaseContext, BaseEntity, transactional
 from tq.database.utils import from_json, to_json
 
 # https://github.com/redis/redis-py
@@ -21,7 +21,7 @@ DEFAULT_BUCKET_SIZE = 10
 
 # TODO: Add db maintainer - aka save after X amount of db commits
 @dataclass
-class RedisDaoContext(object):
+class RedisDaoContext(BaseContext):
     # TODO: Properties + use proper setters
     shard_hint: Optional[str] = None
     watches: Optional[Set[str]] = None
@@ -241,55 +241,36 @@ class RedisDaoContext(object):
             # Ignore if already in progress
             pass
 
-
-def transactional(fn: Callable) -> Callable:
-    @wraps(fn)
-    def tansaction_wrapper(*args, **kwargs):
-        obj_self = args[0]
-        connection_pool = obj_self._db_pool
-
-        ctx: RedisDaoContext = kwargs.get("ctx")
-
-        if isinstance(ctx, RedisDaoContext):
-            ctx = ctx.create_sub_context(obj_self._key_prefix)
-            # TODO add params from ctx
-            return fn(obj_self, ctx, *args[1:], **kwargs)
+    def _run_transaction(self, fn: Callable, is_subcontext: bool = False) -> Any:
+        if is_subcontext:
+            return fn()
         else:
-            ctx = RedisDaoContext(
-                redis.Redis(connection_pool=connection_pool), obj_self._key_prefix
+            return self._db.transaction(
+                fn,
+                value_from_callable=self.value_from_callable,
+                shard_hint=self.shard_hint,
+                watches=self.watches,
+                watch_delay=self.watch_delay,
             )
 
-            # TODO add params from ctx
-            return ctx._db.transaction(
-                lambda pipe: fn(obj_self, ctx, *args[1:], **kwargs),
-                value_from_callable=ctx.value_from_callable,
-                shard_hint=ctx.shard_hint,
-                watches=ctx.watches,
-                watch_delay=ctx.watch_delay,
-            )
 
-    return tansaction_wrapper
-
-
-class BaseRedisDao:
+class BaseRedisDao(AbstractDao):
     def __init__(
         self,
         db_pool: redis.ConnectionPool,
         schema: Type[Schema],
         key_prefix: str = "",
     ):
-        super().__init__()
+        super().__init__(schema, key_prefix)
         self._db_pool: redis.ConnectionPool = db_pool
-        self._key_prefix: str = key_prefix
-        self._schema: Type[Schema] = schema
 
     @transactional
-    def create_or_update(self, ctx: RedisDaoContext, obj: BaseEntity) -> UUID:
+    def create_or_update(self, obj: BaseEntity, ctx: RedisDaoContext) -> UUID:
         return ctx.create_or_update(obj.to_dict(), obj.id)
 
     @transactional
     def get_entity(
-        self, ctx: RedisDaoContext, id: Optional[Union[UUID, str]]
+        self, id: Optional[Union[UUID, str]], ctx: RedisDaoContext
     ) -> BaseEntity:
         data = ctx.get_entity(id)
         return self._schema.load(data) if data else None
@@ -309,9 +290,13 @@ class BaseRedisDao:
             yield key
 
     @transactional
-    def delete(self, ctx: RedisDaoContext, id: Optional[Union[UUID, str]]):
+    def delete(self, id: Optional[Union[UUID, str]], ctx: RedisDaoContext):
         return ctx.delete(id)
 
-    @property
-    def schema(self):
-        return self._schema
+    def _create_context(self, ctx: Optional[BaseContext] = None) -> BaseContext:
+        if ctx is not None:
+            return ctx.create_sub_context(self._key_prefix)
+        else:
+            return RedisDaoContext(
+                redis.Redis(connection_pool=self._db_pool), self._key_prefix
+            )

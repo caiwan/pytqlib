@@ -1,18 +1,18 @@
 from contextlib import ExitStack, contextmanager
 from copy import deepcopy
 from functools import wraps
-from typing import Callable, Iterator, List, Optional, Type, Union
+from typing import Any, Callable, Iterator, List, Optional, Type, Union
 from uuid import UUID
 
 import bson
 from marshmallow import Schema
 from pymongo import MongoClient, client_session, collection, errors
 
-from tq.database.db import AbstractDao, BaseEntity
+from tq.database.db import AbstractDao, BaseContext, BaseEntity, transactional
 from tq.database.utils import from_json, to_json
 
 
-class MongoDaoContext:
+class MongoDaoContext(BaseContext):
     def __init__(self, client: MongoClient, key_prefix: str):
         self._client = client
         self._database = self._client.get_default_database()
@@ -78,34 +78,19 @@ class MongoDaoContext:
     def delete_entity(self, id: Optional[Union[UUID, str]]):
         self.collection.delete_one({"_id": bson.Binary.from_uuid(id)})
 
-
-# TODO: Unify transactions
-def transactional(fn: Callable) -> Callable:
-    @wraps(fn)
-    def tansaction_wrapper(*args, **kwargs):
-        obj_self = args[0]
-        key_prefix = obj_self._key_prefix
-        ctx: MongoDaoContext = kwargs.get("ctx")
-        client = obj_self._client
-
-        if isinstance(ctx, MongoDaoContext):
-            ctx = ctx.create_sub_context(obj_self._key_prefix)
-            # TODO add params from ctx
-            return fn(obj_self, *args[1:], ctx=ctx, **kwargs)
+    def _run_transaction(
+        self, fn: Callable, is_subcontext: bool = False
+    ) -> Optional[Any]:
+        if is_subcontext:
+            return fn()
         else:
-            # TODO: set retry attempts
             for attempt in range(3):
                 try:
-                    ctx = MongoDaoContext(client, key_prefix)
-                    with ctx:
-                        # TODO add params from ctx
-                        return fn(obj_self, *args[1:], ctx=ctx, **kwargs)
-
+                    with self:
+                        return fn()
                 except errors.PyMongoError as e:
                     if attempt == 2:
                         raise e
-
-    return tansaction_wrapper
 
 
 class BaseMongoDao(AbstractDao):
@@ -146,3 +131,9 @@ class BaseMongoDao(AbstractDao):
     @transactional
     def delete(self, id: Optional[Union[UUID, str]], ctx: MongoDaoContext):
         ctx.delete_entity(id)
+
+    def _create_context(self, ctx: Optional[BaseContext] = None) -> BaseContext:
+        if ctx:
+            return ctx.create_sub_context(self.key_prefix)
+        else:
+            return MongoDaoContext(self._client, self.key_prefix)

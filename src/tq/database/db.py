@@ -1,8 +1,10 @@
 import abc
 from contextlib import contextmanager
 from dataclasses import dataclass
+from functools import wraps
 from io import IOBase
-from typing import Any, Iterable, Iterator, List, Optional, Type, Union
+from typing import (Any, Callable, Iterable, Iterator, List, Optional, Type,
+                    Union)
 from uuid import UUID
 
 from dataclasses_json import DataClassJsonMixin
@@ -12,6 +14,32 @@ from marshmallow import Schema
 @dataclass
 class BaseEntity(DataClassJsonMixin):
     id: Optional[Union[UUID, str]]
+
+
+class BaseContext(abc.ABC):
+    @abc.abstractmethod
+    def _run_transaction(
+        self, fn: Callable, is_subcontext: bool = False
+    ) -> Optional[Any]:
+        pass
+
+
+# TODO: Transa\ctional support
+def transactional(fn: Callable) -> Callable:
+    @wraps(fn)
+    def tansaction_wrapper(*args, **kwargs):
+        obj_self = args[0]
+        ctx: BaseContext = obj_self._create_context(kwargs.get("ctx"))
+
+        if "ctx" in kwargs:
+            del kwargs["ctx"]
+
+        return ctx._run_transaction(
+            lambda: fn(obj_self, *args[1:], ctx=ctx, **kwargs),
+            is_subcontext=kwargs.get("ctx", None) is None,
+        )
+
+    return tansaction_wrapper
 
 
 class AbstractDao(abc.ABC):
@@ -46,6 +74,14 @@ class AbstractDao(abc.ABC):
     @property
     def schema(self):
         return self._schema
+
+    @property
+    def key_prefix(self):
+        return self._key_prefix
+
+    @abc.abstractmethod
+    def _create_context(self, ctx: Optional[BaseContext] = None) -> BaseContext:
+        pass
 
 
 class AbstractFsDao(abc.ABC):
