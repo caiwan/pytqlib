@@ -1,14 +1,14 @@
 import logging
-from dataclasses import dataclass
 from typing import Optional
-from unittest.mock import Mock, PropertyMock
+from unittest.mock import Mock
 from uuid import UUID, uuid4
 
 import pytest
 import waiting
 
 from tq.task_dispacher import Task, TaskDispatcher, TaskResult, task_handler
-from tq.tasks.workflow import AbstractFlowStep, FlowStepType, Workflow, WorkflowManager
+from tq.tasks.workflow import AbstractFlowStep
+from tq.tasks.workflow_manager import WorkflowManager
 
 LOGGER = logging.getLogger(__name__)
 
