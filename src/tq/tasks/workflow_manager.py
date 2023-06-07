@@ -1,3 +1,4 @@
+import itertools
 import logging
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -31,35 +32,54 @@ class Workflow:
         while q:
             node = q.pop()
             yield node
-            for c in node.children:
-                q.append(c)
+            q.extend(node.children)
 
     def iterate_steps(self) -> Iterator[FlowStepType]:
         for node in self.iterate_nodes():
             if node.step:
                 yield node.step
 
+    def mark_children_as_failed(self, flow_step: FlowStepType):
+        node = next(
+            filter(lambda node: node.step == flow_step, self.iterate_nodes()), None
+        )
+        if node is not None:
+            for child in node.children:
+                if child.step is not None:
+                    child.step.failed("Parent step failed")
+
     def iterate_incomplete_steps(self) -> Iterator[FlowStepType]:
         q = [self._root]
         while q:
             node = q.pop()
-            if node.step and not node.step.is_done and node.step.is_pending:
-                yield node.step
-            elif not node.step or node.step.is_done:
-                for child in node.children:
-                    q.append(child)
+
+            if node.step is not None:
+                if node.step.is_incomplete:
+                    yield node.step
+                elif node.step.is_done:
+                    q.extend(node.children)
+            else:
+                q.extend(node.children)
 
     def poll(self, max_count: int = 0) -> int:
         flow_count = 0
-        for flow in self.iterate_incomplete_steps():
-            flow.poll(*self._args, **self._kwargs)
+        for flow_step in self.iterate_incomplete_steps():
+            flow_step.poll(*self._args, **self._kwargs)
+
+            if flow_step.is_failed:
+                self.mark_children_as_failed(flow_step)
+
             flow_count += 1
-            if max_count > 0 and flow_count == max_count:
+            if max_count > 0 and flow_count >= max_count:
                 return flow_count
         return flow_count
 
     def is_done(self) -> bool:
         return all([step.is_done for step in self.iterate_steps()])
+
+    # TODO: Is finished -> all(is_done or is_failed or is_timedout)
+    def is_finished(self) -> bool:
+        return all([step.is_finished for step in self.iterate_steps()])
 
     def is_pending(self) -> bool:
         return any([step.is_pending for step in self.iterate_steps()])
@@ -71,8 +91,6 @@ class Workflow:
 class WorkflowBuilder:
     def __init__(self, workflow: Workflow) -> None:
         self._workflow = workflow
-
-        LOGGER.debug(f"building workflow={workflow}")
 
         self._node_map: Dict[str, WorkflowNode] = dict(
             [
@@ -86,8 +104,6 @@ class WorkflowBuilder:
             raise ValueError(
                 f"No such exist step exists '{after}' to insert '{step.name}' as child"
             )
-
-        LOGGER.debug(f"inserting step={step.name} after step={after}")
 
         if step.name in self._node_map:
             raise ValueError(f"Step with name '{step.name}' already exists")
@@ -118,7 +134,6 @@ class WorkflowManager:
 
     def create(self) -> WorkflowBuilder:
         workflow = Workflow()
-        LOGGER.debug(f"creating workflow={workflow}")
         self._workflows.append(workflow)
         return WorkflowBuilder(workflow)
 
@@ -137,6 +152,10 @@ class WorkflowManager:
         return all(workflow.is_done() for workflow in self._workflows)
 
     @property
+    def all_finished(self):
+        return all(workflow.is_finished() for workflow in self._workflows)
+
+    @property
     def max_concurrent_steps(self) -> int:
         return self._max_concurrent_steps
 
@@ -144,6 +163,9 @@ class WorkflowManager:
     def handle_task_result(self, task_result: TaskResult, *a, **w):
         task_id = task_result.task_id
         # Any better idea ???
+
+        LOGGER.info(f"Task {task_id} result returned, updating workflows")
+
         for workflow in self._workflows:
             for step in workflow.iterate_incomplete_steps():
                 if step.task_id == task_id:
@@ -158,6 +180,11 @@ class WorkflowManager:
 
     # TODO: Get workflow states
     # TODO: Get errors / timeouts
+
+    def iterate_workflows(self) -> Iterator[Workflow]:
+        for workflow in self._workflows:
+            yield workflow
+
     def get_workflow():
         pass
 

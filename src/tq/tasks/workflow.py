@@ -69,12 +69,12 @@ class AbstractFlowStep(abc.ABC):
         self._task_created_timestamp = datetime.min
 
         self._result = None
+        self._failure_reason = None
 
     def poll(self, *args, **kwargs):
-        if self._state_macine.current_state == FlowStateMachine.NEW:
+        if self.state == FlowStateMachine.NEW:
             if self.verify_done(*args, **kwargs):
                 self._state_macine.task_done()
-                return
 
             self._task_id = self.create_task(*args, **kwargs)
 
@@ -85,7 +85,7 @@ class AbstractFlowStep(abc.ABC):
                 LOGGER.error(f"Step {self.name} failed to create task")
                 self._state_macine.task_failed()
 
-        elif self._state_macine.current_state == FlowStateMachine.PENDING:
+        elif self.state == FlowStateMachine.PENDING:
             if (
                 self._timeout_seconds
                 and datetime.now() - self._task_created_timestamp
@@ -117,15 +117,23 @@ class AbstractFlowStep(abc.ABC):
         pass
 
     @property
-    def is_done(self) -> bool:
-        return self._state_macine.current_state == FlowStateMachine.DONE
+    def is_new(self) -> bool:
+        return self.state == FlowStateMachine.NEW
 
     @property
     def is_pending(self) -> bool:
+        return self.state == FlowStateMachine.PENDING
+
+    @property
+    def is_done(self) -> bool:
+        return self.state == FlowStateMachine.DONE
+
+    @property
+    def is_incomplete(self) -> bool:
         return any(
             [
-                self._state_macine.current_state == FlowStateMachine.NEW,
-                self._state_macine.current_state == FlowStateMachine.PENDING,
+                self.state == FlowStateMachine.NEW,
+                self.state == FlowStateMachine.PENDING,
             ]
         )
 
@@ -133,8 +141,18 @@ class AbstractFlowStep(abc.ABC):
     def is_failed(self) -> bool:
         return any(
             [
-                self._state_macine.current_state == FlowStateMachine.ERROR,
-                self._state_macine.current_state == FlowStateMachine.TIMEOUT,
+                self.state == FlowStateMachine.ERROR,
+                self.state == FlowStateMachine.TIMEOUT,
+            ]
+        )
+
+    @property
+    def is_finished(self) -> bool:
+        return any(
+            [
+                self.state == FlowStateMachine.DONE,
+                self.state == FlowStateMachine.ERROR,
+                self.state == FlowStateMachine.TIMEOUT,
             ]
         )
 
@@ -152,6 +170,24 @@ class AbstractFlowStep(abc.ABC):
 
     def clear_dirty(self) -> bool:
         self._state_macine.clear_dirty()
+
+    @property
+    def state(self) -> FlowStateMachine:
+        return self._state_macine.current_state
+
+    def failed(self, reason: str):
+        self._state_macine.task_failed()
+        self._failure_reason = reason
+
+    def timeout(self):
+        self._state_macine.timeout()
+
+    def reset(self):
+        self._state_macine.reset()
+
+    @property
+    def failure_reason(self) -> Optional[str]:
+        return self._failure_reason
 
 
 FlowStepType = TypeVar("FlowStepType", bound=AbstractFlowStep)

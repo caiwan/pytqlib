@@ -1,17 +1,14 @@
 import abc
-from dataclasses import dataclass
-from typing import Callable, Optional, Type, List, Any, Dict, Iterator, TypeVar
-from contextlib import contextmanager
-from multiprocessing import Event
-
+import logging
 import queue
+from contextlib import contextmanager
+from dataclasses import dataclass
+from multiprocessing import Event
+from typing import Any, Callable, Dict, Iterator, List, Optional, Type, TypeVar
 from uuid import UUID, uuid4
 
 from tq import bind_function
-from tq.job_system import JobManager, Job
-
-import logging
-
+from tq.job_system import Job, JobManager
 
 LOGGER = logging.getLogger(__name__)
 
@@ -29,7 +26,20 @@ class TaskResult(Task):
 
     @property
     def task_id(self) -> Optional[UUID]:
-        return self.task.task_id
+        return self.task.task_id if self.task else None
+
+    def failed(self, reason: Any):
+        setattr(self, "_failed", True)
+        setattr(self, "_failure_reason", reason)
+        return self
+
+    @property
+    def is_failed(self) -> bool:
+        return getattr(self, "_failed", False)
+
+    @property
+    def failure_reason(self) -> Any:
+        return getattr(self, "_failure_reason", None)
 
 
 TaskType = TypeVar("TaskType", bound=Task)
