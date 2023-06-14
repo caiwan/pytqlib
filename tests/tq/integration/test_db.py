@@ -20,19 +20,29 @@ class MyDao(BaseMongoDao):
 @pytest.mark.mongo
 def test_create_or_update(mongodb_client):
     dao = MyDao(mongodb_client)
-    entity = MyEntity(
-        id=uuid.uuid4(),
-        name="Alice",
-    )
-    id = dao.create_or_update(entity)
-    assert isinstance(id, uuid.UUID)
+    entities = [
+        MyEntity(
+            id=None,
+            name="Alice",
+        ),
+        MyEntity(
+            id=uuid.uuid4(),
+            name="Bob",
+        ),
+        MyEntity(
+            id=str(uuid.uuid4()),
+            name="Charlie",
+        ),
+    ]
+    ids = [dao.create_or_update(entity) for entity in entities]
+    assert all(isinstance(id, uuid.UUID) for id in ids)
 
 
 @pytest.mark.mongo
 def test_get_entity(mongodb_client):
     dao = MyDao(mongodb_client)
     entity = MyEntity(
-        id=uuid.uuid4(),
+        id=None,
         name="Alice",
     )
     id = dao.create_or_update(entity)
@@ -44,11 +54,11 @@ def test_get_entity(mongodb_client):
 def test_get_all(mongodb_client):
     dao = MyDao(mongodb_client)
     entity1 = MyEntity(
-        id=uuid.uuid4(),
+        id=None,
         name="Alice",
     )
     entity2 = MyEntity(
-        id=uuid.uuid4(),
+        id=None,
         name="Bob",
     )
     dao.create_or_update(entity1)
@@ -61,7 +71,7 @@ def test_get_all(mongodb_client):
 def test_iterate_all(mongodb_client):
     dao = MyDao(mongodb_client)
     entity1 = MyEntity(
-        id=uuid.uuid4(),
+        id=None,
         name="Alice",
     )
     entity2 = MyEntity(
@@ -78,11 +88,11 @@ def test_iterate_all(mongodb_client):
 def test_iterate_all_keys(mongodb_client):
     dao = MyDao(mongodb_client)
     entity1 = MyEntity(
-        id=uuid.uuid4(),
+        id=None,
         name="Alice",
     )
     entity2 = MyEntity(
-        id=uuid.uuid4(),
+        id=None,
         name="Bob",
     )
     id1 = dao.create_or_update(entity1)
@@ -95,7 +105,7 @@ def test_iterate_all_keys(mongodb_client):
 def test_delete(mongodb_client):
     dao = MyDao(mongodb_client)
     entity = MyEntity(
-        id=uuid.uuid4(),
+        id=None,
         name="Alice",
     )
     id = dao.create_or_update(entity)

@@ -1,8 +1,5 @@
-from contextlib import ExitStack, contextmanager
-from copy import deepcopy
-from functools import wraps
 from typing import Any, Callable, Iterator, List, Optional, Type, Union
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import bson
 from marshmallow import Schema
@@ -46,8 +43,13 @@ class MongoDaoContext(BaseContext):
 
     def create_or_update(self, obj: BaseEntity) -> UUID:
         data = obj.to_dict()
+        obj.id = obj.id or uuid4()
         result = self.collection.update_one(
-            {"_id": bson.Binary.from_uuid(obj.id)},
+            {
+                "_id": bson.Binary.from_uuid(
+                    UUID(obj.id) if isinstance(obj.id, str) else obj.id
+                )
+            },
             {"$set": from_json(to_json(data))},
             upsert=True,
         )
@@ -57,7 +59,9 @@ class MongoDaoContext(BaseContext):
         return obj.id
 
     def get_entity(self, id: Optional[Union[UUID, str]]) -> BaseEntity:
-        result = self.collection.find_one({"_id": bson.Binary.from_uuid(id)})
+        result = self.collection.find_one(
+            {"_id": bson.Binary.from_uuid(UUID(id) if isinstance(id, str) else id)}
+        )
         if result:
             result["id"] = bson.Binary.as_uuid(result["_id"])
             del result["_id"]
