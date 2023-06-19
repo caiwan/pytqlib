@@ -67,6 +67,13 @@ class MongoDaoContext(BaseContext):
             del result["_id"]
         return result
 
+    def find_one_entity(self, query: dict) -> BaseEntity:
+        result = self.collection.find_one(query)
+        if result:
+            result["id"] = bson.Binary.as_uuid(result["_id"])
+            del result["_id"]
+        return result
+
     def iterate_entities(self) -> Iterator[BaseEntity]:
         for item in self.collection.find({}):
             if item:
