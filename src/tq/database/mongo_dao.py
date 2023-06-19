@@ -1,4 +1,4 @@
-from typing import Any, Callable, Iterator, List, Optional, Type, Union
+from typing import Any, Callable, Dict, Iterator, List, Optional, Type, Union
 from uuid import UUID, uuid4
 
 import bson
@@ -41,7 +41,7 @@ class MongoDaoContext(BaseContext):
     def create_sub_context(self, key_prefix: str) -> "MongoDaoContext":
         return MongoDaoContext(self._connection_pool_manager, key_prefix)
 
-    def create_or_update(self, obj: BaseEntity) -> UUID:
+    def create_or_update(self, obj: Dict) -> UUID:
         data = obj.to_dict()
         obj.id = obj.id or uuid4()
         result = self.collection.update_one(
@@ -58,7 +58,7 @@ class MongoDaoContext(BaseContext):
 
         return obj.id
 
-    def get_entity(self, id: Optional[Union[UUID, str]]) -> BaseEntity:
+    def get_entity(self, id: Optional[Union[UUID, str]]) -> Dict:
         result = self.collection.find_one(
             {"_id": bson.Binary.from_uuid(UUID(id) if isinstance(id, str) else id)}
         )
@@ -67,14 +67,21 @@ class MongoDaoContext(BaseContext):
             del result["_id"]
         return result
 
-    def find_one_entity(self, query: dict) -> BaseEntity:
+    def find_one_entity(self, query: dict) -> Dict:
         result = self.collection.find_one(query)
         if result:
             result["id"] = bson.Binary.as_uuid(result["_id"])
             del result["_id"]
         return result
 
-    def iterate_entities(self) -> Iterator[BaseEntity]:
+    def find_iterate(self, query: dict) -> Iterator[Dict]:
+        for item in self.collection.find(query):
+            if item:
+                item["id"] = bson.Binary.as_uuid(item["_id"])
+                del item["_id"]
+                yield item
+
+    def iterate_entities(self) -> Iterator[Dict]:
         for item in self.collection.find({}):
             if item:
                 item["id"] = bson.Binary.as_uuid(item["_id"])
