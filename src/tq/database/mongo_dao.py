@@ -1,9 +1,9 @@
-from typing import Any, Callable, Dict, Iterator, List, Optional, Type, Union
+from typing import Any, Callable, Dict, Iterable, Iterator, List, Optional, Type, Union
 from uuid import UUID, uuid4
 
 import bson
 from marshmallow import Schema
-from pymongo import MongoClient, client_session, collection, errors
+from pymongo import MongoClient, UpdateOne, client_session, collection, errors
 
 from tq.database.db import AbstractDao, BaseContext, BaseEntity, transactional
 from tq.database.utils import from_json, to_json
@@ -41,22 +41,37 @@ class MongoDaoContext(BaseContext):
     def create_sub_context(self, key_prefix: str) -> "MongoDaoContext":
         return MongoDaoContext(self._connection_pool_manager, key_prefix)
 
-    def create_or_update(self, obj: Dict) -> UUID:
+    def create_or_update(self, obj: Any) -> UUID:
         data = obj.to_dict()
-        obj.id = obj.id or uuid4()
+        obj_id = UUID(obj.id) if isinstance(obj.id, str) else obj.id or uuid4()
+        del data["id"]
+
         result = self.collection.update_one(
-            {
-                "_id": bson.Binary.from_uuid(
-                    UUID(obj.id) if isinstance(obj.id, str) else obj.id
-                )
-            },
-            {"$set": from_json(to_json(data))},
+            {"_id": bson.Binary.from_uuid(obj_id)},
+            {"$set": data},
             upsert=True,
         )
         if result.upserted_id:
             obj.id = bson.Binary.as_uuid(result.upserted_id)
 
         return obj.id
+
+    def create_or_update_many(self, objs: Iterable[Any]) -> List[UUID]:
+        updates = []
+        for obj in objs:
+            data = obj.to_dict()
+            obj_id = UUID(obj.id) if isinstance(obj.id, str) else obj.id or uuid4()
+            del data["id"]
+            updates.append(
+                UpdateOne(
+                    {"_id": bson.Binary.from_uuid(obj_id)},
+                    {"$set": obj.to_dict()},
+                )
+            )
+            obj.id = obj_id
+
+        result = self.collection.bulk_write(updates)
+        return [bson.Binary.as_uuid(id_) for id_ in result.upserted_ids]
 
     def get_entity(self, id: Optional[Union[UUID, str]]) -> Dict:
         result = self.collection.find_one(
@@ -124,6 +139,12 @@ class BaseMongoDao(AbstractDao):
     @transactional
     def create_or_update(self, obj: BaseEntity, ctx: MongoDaoContext) -> UUID:
         return ctx.create_or_update(obj)
+
+    @transactional
+    def bulk_create_or_update(
+        self, objs: Iterable[BaseEntity], ctx: MongoDaoContext
+    ) -> List[UUID]:
+        return ctx.create_or_update_many(objs)
 
     @transactional
     def get_entity(

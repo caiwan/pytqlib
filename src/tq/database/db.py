@@ -3,8 +3,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import wraps
 from io import IOBase
-from typing import (Any, Callable, Iterable, Iterator, List, Optional, Type,
-                    Union)
+from typing import Any, Callable, Iterable, Iterator, List, Optional, Type, Union
 from uuid import UUID
 
 from dataclasses_json import DataClassJsonMixin
@@ -24,7 +23,6 @@ class BaseContext(abc.ABC):
         pass
 
 
-# TODO: Transa\ctional support
 def transactional(fn: Callable) -> Callable:
     @wraps(fn)
     def tansaction_wrapper(*args, **kwargs):
@@ -49,6 +47,12 @@ class AbstractDao(abc.ABC):
 
     @abc.abstractmethod
     def create_or_update(self, obj: BaseEntity, *args, **kwargs) -> UUID:
+        pass
+
+    @abc.abstractmethod
+    def bulk_create_or_update(
+        self, obj: Iterable[BaseEntity], *args, **kwargs
+    ) -> List[UUID]:
         pass
 
     @abc.abstractmethod

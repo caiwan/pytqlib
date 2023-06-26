@@ -1,7 +1,18 @@
 from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import wraps
-from typing import Any, Callable, Dict, Iterator, List, Optional, Set, Type, Union
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Iterable,
+    Iterator,
+    List,
+    Optional,
+    Set,
+    Type,
+    Union,
+)
 from uuid import UUID, uuid4
 
 import redis
@@ -267,6 +278,12 @@ class BaseRedisDao(AbstractDao):
     @transactional
     def create_or_update(self, obj: BaseEntity, ctx: RedisDaoContext) -> UUID:
         return ctx.create_or_update(obj.to_dict(), obj.id)
+
+    @transactional
+    def bulk_create_or_update(
+        self, objs: Iterable[BaseEntity], ctx: RedisDaoContext
+    ) -> List[UUID]:
+        return list([ctx.create_or_update(obj.to_dict(), obj.id) for obj in objs])
 
     @transactional
     def get_entity(
