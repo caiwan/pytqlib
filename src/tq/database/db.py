@@ -12,7 +12,7 @@ from marshmallow import Schema
 
 @dataclass
 class BaseEntity(DataClassJsonMixin):
-    id: Optional[Union[UUID, str]]
+    id: Optional[UUID]
 
 
 class BaseContext(abc.ABC):

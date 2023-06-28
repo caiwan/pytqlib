@@ -30,7 +30,7 @@ def test_create_or_update(mongodb_client):
             name="Bob",
         ),
         MyEntity(
-            id=str(uuid.uuid4()),
+            id=uuid.uuid4(),
             name="Charlie",
         ),
     ]
@@ -47,6 +47,8 @@ def test_get_entity(mongodb_client):
     )
     id = dao.create_or_update(entity)
     retrieved_entity = dao.get_entity(id)
+    assert retrieved_entity is not None
+    assert retrieved_entity.id == id
     assert retrieved_entity.name == "Alice"
 
 

@@ -70,8 +70,6 @@ def mongodb_client(mongo_db) -> MongoClient:
         f"mongodb://{test_user}:{test_password}@{MONGO_HOST}/{test_db}?authSource=admin"
     )
 
-    client[test_db].create_collection(str(uuid.uuid4()))
-
     yield client
 
     db = client.get_database(test_db)

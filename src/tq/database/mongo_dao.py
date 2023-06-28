@@ -1,3 +1,4 @@
+import logging
 from typing import Any, Callable, Dict, Iterable, Iterator, List, Optional, Type, Union
 from uuid import UUID, uuid4
 
@@ -6,7 +7,8 @@ from marshmallow import Schema
 from pymongo import MongoClient, UpdateOne, client_session, collection, errors
 
 from tq.database.db import AbstractDao, BaseContext, BaseEntity, transactional
-from tq.database.utils import from_json, to_json
+
+LOGGER = logging.getLogger(__name__)
 
 
 class MongoDaoContext(BaseContext):
@@ -41,67 +43,101 @@ class MongoDaoContext(BaseContext):
     def create_sub_context(self, key_prefix: str) -> "MongoDaoContext":
         return MongoDaoContext(self._connection_pool_manager, key_prefix)
 
-    def create_or_update(self, obj: Any) -> UUID:
-        data = obj.to_dict()
-        obj_id = UUID(obj.id) if isinstance(obj.id, str) else obj.id or uuid4()
-        del data["id"]
+    def _sanitize(self, data: Optional[Dict]) -> Optional[Dict]:
+        if data is None:
+            return None
 
+        for key, value in data.items():
+            if isinstance(value, UUID):
+                data[key] = bson.Binary.from_uuid(value)
+
+            if isinstance(value, dict):
+                data[key] = self._sanitize(value)
+
+            if isinstance(value, list):
+                data[key] = [self._sanitize(v) for v in value]
+
+        if "id" in data:
+            data["_id"] = data["id"]
+            del data["id"]
+
+        return data
+
+    def _desanitize(self, data: Optional[Dict]) -> Optional[Dict]:
+        if data is None:
+            return None
+
+        for key, value in data.items():
+            if isinstance(value, bson.Binary):
+                data[key] = bson.Binary.as_uuid(value)
+
+            if isinstance(value, dict):
+                data[key] = self._desanitize(value)
+
+            if isinstance(value, list):
+                data[key] = [self._desanitize(v) for v in value]
+
+        if "_id" in data:
+            data["id"] = data["_id"]
+            del data["_id"]
+
+        return data
+
+    def create_or_update(self, obj: Any) -> UUID:
+        data = self._sanitize(obj.to_dict())
+        del data["_id"]
+        obj.id = obj.id or uuid4()
         result = self.collection.update_one(
-            {"_id": bson.Binary.from_uuid(obj_id)},
+            {"_id": bson.Binary.from_uuid(obj.id)},
             {"$set": data},
             upsert=True,
         )
+
         if result.upserted_id:
             obj.id = bson.Binary.as_uuid(result.upserted_id)
 
         return obj.id
 
     def create_or_update_many(self, objs: Iterable[Any]) -> List[UUID]:
+        # TODO: This does not work
         updates = []
         for obj in objs:
-            data = obj.to_dict()
-            obj_id = UUID(obj.id) if isinstance(obj.id, str) else obj.id or uuid4()
-            del data["id"]
+            data = self._sanitize(obj.to_dict())
+            obj.id = obj.id or uuid4()
+            del data["_id"]
             updates.append(
                 UpdateOne(
-                    {"_id": bson.Binary.from_uuid(obj_id)},
-                    {"$set": obj.to_dict()},
+                    {"_id": bson.Binary.from_uuid(obj.id)},
+                    {"$set": data},
+                    upsert=True,
                 )
             )
-            obj.id = obj_id
 
-        result = self.collection.bulk_write(updates)
-        return [bson.Binary.as_uuid(id_) for id_ in result.upserted_ids]
+        write_result = self.collection.bulk_write(updates)
+
+        for obj_index, upserted_id in write_result.upserted_ids.items():
+            objs[obj_index].id = bson.Binary.as_uuid(upserted_id)
+
+        return [obj.id for obj in objs]
 
     def get_entity(self, id: Optional[Union[UUID, str]]) -> Dict:
-        result = self.collection.find_one(
-            {"_id": bson.Binary.from_uuid(UUID(id) if isinstance(id, str) else id)}
-        )
-        if result:
-            result["id"] = bson.Binary.as_uuid(result["_id"])
-            del result["_id"]
-        return result
+        obj_id = UUID(id) if isinstance(id, str) else id
+        result = self.collection.find_one({"_id": bson.Binary.from_uuid(obj_id)})
+        return self._desanitize(result)
 
     def find_one_entity(self, query: dict) -> Dict:
         result = self.collection.find_one(query)
-        if result:
-            result["id"] = bson.Binary.as_uuid(result["_id"])
-            del result["_id"]
-        return result
+        return self._desanitize(result)
 
     def find_iterate(self, query: dict) -> Iterator[Dict]:
         for item in self.collection.find(query):
             if item:
-                item["id"] = bson.Binary.as_uuid(item["_id"])
-                del item["_id"]
-                yield item
+                yield self._desanitize(item)
 
     def iterate_entities(self) -> Iterator[Dict]:
         for item in self.collection.find({}):
             if item:
-                item["id"] = bson.Binary.as_uuid(item["_id"])
-                del item["_id"]
-                yield item
+                yield self._desanitize(item)
 
     def iterate_all_keys(self) -> Iterator[UUID]:
         for item in self.collection.find({}, {"_id": 1}):
