@@ -10,6 +10,7 @@ from dataclasses_json import DataClassJsonMixin
 from marshmallow import Schema
 
 
+# TODO: id becomes _id in [mongo]
 @dataclass
 class BaseEntity(DataClassJsonMixin):
     id: Optional[UUID]
