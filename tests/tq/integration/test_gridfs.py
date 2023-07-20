@@ -77,3 +77,10 @@ def test_open_append_text(gridfs_dao, test_data, test_file_name):
     with gridfs_dao.open(test_file_name, "a") as f:
         f.write(test_data)
     assert gridfs_dao.load(test_file_name) == test_data + test_data
+
+
+@pytest.mark.mongo
+def test_open_file_as_tempfile(gridfs_dao, test_data, test_file_name):
+    file_id = gridfs_dao.store(test_file_name, test_data)
+    with gridfs_dao.as_tempfile(file_id) as tmp:
+        assert tmp.read() == test_data

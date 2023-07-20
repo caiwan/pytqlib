@@ -1,6 +1,7 @@
 import io
+import tempfile
 from contextlib import contextmanager
-from typing import Any, Iterable, Union
+from typing import Any, Iterable, Optional, Union
 from uuid import UUID
 
 import pymongo
@@ -38,13 +39,22 @@ class SimpleGridFsDao(AbstractFsDao):
     def iterate_filenames(self) -> Iterable[str]:
         return self._fs.list()
 
-    def find_file_id(self, filename: str) -> str:
+    def find_file_id(self, filename: str) -> Optional[str]:
         file = self._fs.find_one({"filename": filename})
         return str(file._id) if file else None
 
     @contextmanager
     def open(self, filename: str, mode: str = "rb") -> Union[io.BytesIO, io.StringIO]:
         raise NotImplementedError()
+
+    @contextmanager
+    def as_tempfile(
+        self, file_id: str, **kwargs
+    ) -> Union[tempfile._TemporaryFileWrapper, tempfile.SpooledTemporaryFile]:
+        with tempfile.NamedTemporaryFile(**kwargs) as tmp:
+            tmp.write(self.load_by_id(file_id))
+            tmp.seek(0)
+            yield tmp
 
 
 class BucketGridFsDao(AbstractFsDao):
@@ -92,7 +102,7 @@ class BucketGridFsDao(AbstractFsDao):
     def iterate_filenames(self) -> Iterable[str]:
         return (file.filename for file in self._bucket.find())
 
-    def find_file_id(self, filename: str) -> str:
+    def find_file_id(self, filename: str) -> Optional[str]:
         file = self._bucket.find({"filename": filename})
         first_item = next(file, None)
         # if next(file, None):
@@ -117,6 +127,13 @@ class BucketGridFsDao(AbstractFsDao):
                 with self._bucket.open_upload_stream(filename=filename) as file_obj:
                     yield file_obj
             # raise ValueError("Write mode not supported")
+
+    @contextmanager
+    def as_tempfile(self, file_id: str, **kwargs):
+        with tempfile.NamedTemporaryFile(**kwargs) as tmp:
+            tmp.write(self.load_by_id(file_id))
+            tmp.seek(0)
+            yield tmp
 
 
 GridFsDao = BucketGridFsDao

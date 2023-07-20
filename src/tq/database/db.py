@@ -1,5 +1,5 @@
 import abc
-from contextlib import contextmanager
+import tempfile
 from dataclasses import dataclass
 from functools import wraps
 from io import IOBase
@@ -115,9 +115,15 @@ class AbstractFsDao(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def find_file_id(self, filename: str) -> str:
+    def find_file_id(self, filename: str) -> Optional[str]:
         pass
 
     @abc.abstractmethod
     def open(self, filename: str, mode: str = "rb") -> IOBase:
+        pass
+
+    @abc.abstractmethod
+    def as_tempfile(
+        self, file_id: str
+    ) -> Union[tempfile._TemporaryFileWrapper, tempfile.SpooledTemporaryFile]:
         pass
