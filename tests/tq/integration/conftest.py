@@ -10,20 +10,19 @@ LOGGER = logging.getLogger(__name__)
 DB_PORT = 6379
 DB_HOST = "localhost"
 
-
 MONGO_HOST = "localhost:27017"
 MONGO_CONNECTION_STRING = "mongodb://root:toor@" + MONGO_HOST
 PLACEHOLDER = "_placeholder"
 
 
 @pytest.fixture(scope="function")
-def db_pool() -> redis.ConnectionPool:
+def cache_db_pool() -> redis.ConnectionPool:
     return redis.ConnectionPool(host=DB_HOST, port=DB_PORT, db=0)
 
 
 @pytest.fixture(scope="function")
-def db_connection(db_pool) -> redis.Redis:
-    db = redis.Redis(connection_pool=db_pool)
+def cache_db_connection(cache_db_pool) -> redis.Redis:
+    db = redis.Redis(connection_pool=cache_db_pool)
     yield db
     db.flushall()
 

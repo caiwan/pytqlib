@@ -22,7 +22,12 @@ class MyDataDao(BaseRedisDao):
         super().__init__(db_pool, MyData.schema(), key_prefix="my_data")
 
     @transactional
-    def save_raw_data(self, id: UUID, data: bytes, ctx: RedisDaoContext,) -> UUID:
+    def save_raw_data(
+        self,
+        id: UUID,
+        data: bytes,
+        ctx: RedisDaoContext,
+    ) -> UUID:
         return ctx.set(id, data)
 
     @transactional
@@ -30,11 +35,20 @@ class MyDataDao(BaseRedisDao):
         return ctx.get(id)
 
     @transactional
-    def push(self, id: UUID, obj: MyData, ctx: RedisDaoContext,):
+    def push(
+        self,
+        id: UUID,
+        obj: MyData,
+        ctx: RedisDaoContext,
+    ):
         ctx.list_push_entity(id, obj.to_dict())
 
     @transactional
-    def pop(self, id: UUID, ctx: RedisDaoContext,) -> MyData:
+    def pop(
+        self,
+        id: UUID,
+        ctx: RedisDaoContext,
+    ) -> MyData:
         return self._schema.load(ctx.list_pop_entity(id))
 
     @transactional
@@ -43,8 +57,8 @@ class MyDataDao(BaseRedisDao):
 
 
 @pytest.mark.integration
-def test_create_read_delete(db_pool):
-    dao = MyDataDao(db_pool)
+def test_create_read_delete(cache_db_pool):
+    dao = MyDataDao(cache_db_pool)
     data = MyData()
     obj_id = dao.create_or_update(data)
     assert obj_id is not None
@@ -61,8 +75,8 @@ def test_create_read_delete(db_pool):
 
 
 @pytest.mark.integration
-def test_create_read_delete_raw_data(db_pool):
-    dao = MyDataDao(db_pool)
+def test_create_read_delete_raw_data(cache_db_pool):
+    dao = MyDataDao(cache_db_pool)
     data = bytes(bytearray([random.randint(0, 255) for _ in range(1024**2)]))
 
     obj_id = dao.save_raw_data(None, data)
@@ -80,8 +94,8 @@ def test_create_read_delete_raw_data(db_pool):
 
 
 @pytest.mark.integration
-def test_stack_push_pop(db_pool):
-    dao = MyDataDao(db_pool)
+def test_stack_push_pop(cache_db_pool):
+    dao = MyDataDao(cache_db_pool)
     test_objects = [MyData(integer=random.randint(0, 65536)) for _ in range(256)]
 
     list_id = uuid4()
