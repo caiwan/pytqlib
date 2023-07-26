@@ -8,7 +8,6 @@ from typing import Any, Callable, Dict, Iterator, List, Optional, Type, TypeVar
 from uuid import UUID, uuid4
 
 from tq import bind_function
-from tq.job_system import Job, JobManager
 
 LOGGER = logging.getLogger(__name__)
 
@@ -84,7 +83,7 @@ class LocalTaskQueue(BaseTaskQueue):
 
 
 class TaskDispatcher:
-    def __init__(self, task_queue: BaseTaskQueue, job_manager: JobManager) -> None:
+    def __init__(self, task_queue: BaseTaskQueue) -> None:
         # TODO: Use defaultdict
         self.task_handlers: Dict[Type, List[Callable]] = {}
         self.task_queque: BaseTaskQueue = task_queue
@@ -141,12 +140,14 @@ class TaskDispatcher:
         self.task_queque.put(task)
         return task.task_id
 
+    # TODO: Async
     def _schedule_dispatch_job(self):
         job = self.job_manager.create_job(
             bind_function(TaskDispatcher._dispatch_loop, self)
         )
         self.job_manager.schedule_job(job)
 
+    # TODO: Async
     def _dispatch_loop(self, job: Job, manager: JobManager):
         LOGGER.debug("dispatch loop_tick")
         is_continue = True
@@ -160,6 +161,7 @@ class TaskDispatcher:
                 else:
                     LOGGER.info("Dispatcher terminated")
 
+    # TODO: Async
     def _dispatch_task(self, task: Task, job: Job, manager: JobManager):
         if not isinstance(task, TerminateDispatcherLoop):
             task_type = type(task)
