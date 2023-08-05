@@ -14,7 +14,7 @@ class MyEntity(BaseEntity):
 
 class MyDao(BaseMongoDao):
     def __init__(self, connection):
-        super().__init__(connection, MyEntity.schema(), "test")
+        super().__init__(connection, MyEntity, "test")
 
 
 @pytest.mark.mongo

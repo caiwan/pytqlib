@@ -41,50 +41,52 @@ class MongoDaoContext(BaseContext):
         return self._collection
 
     def create_sub_context(self, key_prefix: str) -> "MongoDaoContext":
-        return MongoDaoContext(self._connection_pool_manager, key_prefix)
+        return MongoDaoContext(self._client, key_prefix)
 
-    def _sanitize(self, data: Optional[Dict]) -> Optional[Dict]:
+    def sanitize(self, data: Optional[Dict]) -> Optional[Dict]:
         if data is None:
             return None
 
-        for key, value in data.items():
-            if isinstance(value, UUID):
-                data[key] = bson.Binary.from_uuid(value)
+        if hasattr(data, "items"):
+            for key, value in data.items():
+                if isinstance(value, UUID):
+                    data[key] = bson.Binary.from_uuid(value)
 
-            if isinstance(value, dict):
-                data[key] = self._sanitize(value)
+                if isinstance(value, dict):
+                    data[key] = self.sanitize(value)
 
-            if isinstance(value, list):
-                data[key] = [self._sanitize(v) for v in value]
+                if isinstance(value, list):
+                    data[key] = [self.sanitize(v) for v in value]
 
-        if "id" in data:
-            data["_id"] = data["id"]
-            del data["id"]
+            if "id" in data:
+                data["_id"] = data["id"]
+                del data["id"]
 
         return data
 
-    def _desanitize(self, data: Optional[Dict]) -> Optional[Dict]:
+    def desanitize(self, data: Optional[Dict]) -> Optional[Dict]:
         if data is None:
             return None
 
-        for key, value in data.items():
-            if isinstance(value, bson.Binary):
-                data[key] = bson.Binary.as_uuid(value)
+        if hasattr(data, "items"):
+            for key, value in data.items():
+                if isinstance(value, bson.Binary):
+                    data[key] = bson.Binary.as_uuid(value)
 
-            if isinstance(value, dict):
-                data[key] = self._desanitize(value)
+                if isinstance(value, dict):
+                    data[key] = self.desanitize(value)
 
-            if isinstance(value, list):
-                data[key] = [self._desanitize(v) for v in value]
+                if isinstance(value, list):
+                    data[key] = [self.desanitize(v) for v in value]
 
-        if "_id" in data:
-            data["id"] = data["_id"]
-            del data["_id"]
+            if "_id" in data:
+                data["id"] = data["_id"]
+                del data["_id"]
 
         return data
 
     def create_or_update(self, obj: Any) -> UUID:
-        data = self._sanitize(obj.to_dict())
+        data = self.sanitize(obj.to_dict())
         del data["_id"]
         obj.id = obj.id or uuid4()
         result = self.collection.update_one(
@@ -102,7 +104,7 @@ class MongoDaoContext(BaseContext):
         # TODO: This does not work
         updates = []
         for obj in objs:
-            data = self._sanitize(obj.to_dict())
+            data = self.sanitize(obj.to_dict())
             obj.id = obj.id or uuid4()
             del data["_id"]
             updates.append(
@@ -123,21 +125,21 @@ class MongoDaoContext(BaseContext):
     def get_entity(self, id: Optional[Union[UUID, str]]) -> Dict:
         obj_id = UUID(id) if isinstance(id, str) else id
         result = self.collection.find_one({"_id": bson.Binary.from_uuid(obj_id)})
-        return self._desanitize(result)
+        return self.desanitize(result)
 
     def find_one_entity(self, query: dict) -> Dict:
         result = self.collection.find_one(query)
-        return self._desanitize(result)
+        return self.desanitize(result)
 
     def find_iterate(self, query: dict) -> Iterator[Dict]:
         for item in self.collection.find(query):
             if item:
-                yield self._desanitize(item)
+                yield self.desanitize(item)
 
     def iterate_entities(self) -> Iterator[Dict]:
         for item in self.collection.find({}):
             if item:
-                yield self._desanitize(item)
+                yield self.desanitize(item)
 
     def iterate_all_keys(self) -> Iterator[UUID]:
         for item in self.collection.find({}, {"_id": 1}):
