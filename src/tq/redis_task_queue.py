@@ -36,8 +36,6 @@ class RedisTaskQueueDao(BaseRedisDao):
     def pop(self, ctx: RedisDaoContext) -> TaskEntity:
         task_serialized = ctx.list_pop_entity(self.task_queue_id)
         if task_serialized:
-            logger.debug(task_serialized)
-
             task_entity: TaskEntity = self._schema.from_dict(task_serialized)
             return pickle.loads(base64.b64decode(task_entity.payload.encode()))
         return None

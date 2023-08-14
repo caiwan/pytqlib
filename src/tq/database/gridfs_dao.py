@@ -63,7 +63,7 @@ class BucketGridFsDao(AbstractFsDao):
         self._db = self._client.get_default_database()
         self._bucket = GridFSBucket(self._db)
 
-    def store(self, filename: str, data: Any) -> UUID:
+    def store(self, filename: str, data: Any) -> str:
         if isinstance(data, io.IOBase):
             file_id = self._bucket.upload_from_stream(filename, data)
         elif isinstance(data, bytes):
@@ -78,7 +78,7 @@ class BucketGridFsDao(AbstractFsDao):
         file_obj = self._bucket.open_download_stream(ObjectId(file_id))
         return file_obj.read()
 
-    def delete_by_id(self, file_id: UUID) -> bool:
+    def delete_by_id(self, file_id: str) -> bool:
         try:
             self._bucket.delete(ObjectId(file_id))
             return True
