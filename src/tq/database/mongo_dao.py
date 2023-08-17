@@ -131,8 +131,8 @@ class MongoDaoContext(BaseContext):
         result = self.collection.find_one(query)
         return self.desanitize(result)
 
-    def find_iterate(self, query: dict) -> Iterator[Dict]:
-        for item in self.collection.find(query):
+    def find_iterate(self, *args, **kwargs) -> Iterator[Dict]:
+        for item in self.collection.find(*args, **kwargs):
             if item:
                 yield self.desanitize(item)
 
