@@ -61,10 +61,35 @@ services:
     networks:
       - mongo
 
+  neo4j:
+    image: neo4j:latest
+    container_name: neo4j_database
+    ports:
+      - "7474:7474" 
+      - "7687:7687" 
+    environment:
+      NEO4J_AUTH: neo4j/password  
+    volumes:
+      - neo4j-data:/data  
+
+  admin:
+    image: neo4j:latest
+    container_name: neo4j_admin
+    depends_on:
+      - neo4j
+    ports:
+      - "7475:7474"  
+    environment:
+      NEO4J_AUTH: neo4j/admin_password  
+    volumes:
+      - neo4j-data:/data  
+
+
 volumes:
   redis-data:
   redisinsight:
   mongo-data:
+  neo4j-data:
 
 networks:
   redis:
