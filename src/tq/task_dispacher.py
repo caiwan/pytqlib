@@ -51,6 +51,15 @@ class TerminateDispatcherLoop(Task):
 
 
 def task_handler(*task_type_list):
+    """
+    Decorator for task handler functions.
+    Example:
+        @task_handler(MyTask)
+        def fetch_user_page(self, task: MyTask, job: Job, manager: JobManager, dispatcher: TaskDispatcher):
+            pass
+
+    """
+
     def decorator(f):
         f.task_hanlder_type_list = task_type_list
         return f
@@ -175,6 +184,11 @@ class TaskDispatcher:
 
             for handler_job in handler_jobs:
                 manager.wait(handler_job)
+                # TODO: IF handler returns with result dispatch it.
+
+            for handler_job in handler_jobs:
+                if handler_job.result and isinstance(handler_job.result, TaskResult):
+                    self.post_task(handler_job.result)
 
             return True
 

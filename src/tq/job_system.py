@@ -44,6 +44,10 @@ class Job:
     @property
     def is_finished(self) -> bool:
         return self.unfinished_jobs == 0
+    
+    @property
+    def result(self):
+        return self._result
 
 
 class Worker(threading.Thread):
