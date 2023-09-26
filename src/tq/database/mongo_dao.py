@@ -115,12 +115,15 @@ class MongoDaoContext(BaseContext):
                 )
             )
 
-        write_result = self.collection.bulk_write(updates)
+        if updates:
+            write_result = self.collection.bulk_write(updates)
 
-        for obj_index, upserted_id in write_result.upserted_ids.items():
-            objs[obj_index].id = bson.Binary.as_uuid(upserted_id)
+            for obj_index, upserted_id in write_result.upserted_ids.items():
+                objs[obj_index].id = bson.Binary.as_uuid(upserted_id)
 
-        return [obj.id for obj in objs]
+            return [obj.id for obj in objs]
+    
+        return []
 
     def get_entity(self, id: Optional[Union[UUID, str]]) -> Dict:
         obj_id = UUID(id) if isinstance(id, str) else id
