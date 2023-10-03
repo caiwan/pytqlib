@@ -257,7 +257,7 @@ class RedisDaoContext(BaseContext):
             return fn()
         else:
             return self._db.transaction(
-                fn,
+                lambda *args, **kwargs: fn(),  # TODO: What to do with the pipe? [or the rest of the args?]
                 value_from_callable=self.value_from_callable,
                 shard_hint=self.shard_hint,
                 watches=self.watches,
