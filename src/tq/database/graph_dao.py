@@ -199,7 +199,8 @@ class Neo4jDao(AbstractDao):
         graph: Graph,
         key_prefix: str = "",
     ):
-        super().__init__(schema, key_prefix)
+        # TODO: Register multiple schemas
+        super().__init__(schema, key_prefix)  # TODO: None of these are used
         self._graph = graph
 
     @transactional
@@ -238,6 +239,17 @@ class Neo4jDao(AbstractDao):
     @transactional
     def delete(self, id: Optional[Union[UUID, str]], ctx: Neo4jContext) -> int:
         return ctx.delete(self.schema.__name__, match={"id": id}, limit=1)
+
+    @transactional
+    def make_connection(
+        self,
+        src: BaseEntity,
+        tgt: BaseEntity,
+        ctx: Neo4jContext,
+        connection_type: str = "",
+        connection_data: Optional[BaseEntity] = None,
+    ):
+        pass
 
     def _create_context(self, ctx: Optional[BaseContext] = None) -> BaseContext:
         return Neo4jContext(self._graph)
