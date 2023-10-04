@@ -28,6 +28,8 @@ services:
       - 8001:8001
     networks:
       - redis
+    depends_on:
+      - redis
 
   mongo:
     image: "mongo:5.0.17"
@@ -60,30 +62,25 @@ services:
       ME_CONFIG_MONGODB_URL: mongodb://root:toor@mongo:27017/
     networks:
       - mongo
+    depends_on:
+      - mongo
 
   neo4j:
     image: neo4j:latest
-    container_name: neo4j_database
     ports:
-      - "7474:7474" 
-      - "7687:7687" 
+      - "7474:7474" # HTTP
+      - "7687:7687" # Bolt
     environment:
       NEO4J_AUTH: neo4j/password  
     volumes:
       - neo4j-data:/data  
-
-  admin:
-    image: neo4j:latest
-    container_name: neo4j_admin
-    depends_on:
+    networks:
       - neo4j
-    ports:
-      - "7475:7474"  
-    environment:
-      NEO4J_AUTH: neo4j/admin_password  
-    volumes:
-      - neo4j-data:/data  
-
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://neo4j:7474/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
 volumes:
   redis-data:
@@ -94,3 +91,4 @@ volumes:
 networks:
   redis:
   mongo:
+  neo4j:

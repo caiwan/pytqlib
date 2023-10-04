@@ -25,6 +25,10 @@ class BaseContext(abc.ABC):
 
 
 def transactional(fn: Callable) -> Callable:
+    """
+    Decorator to run a function in a transactional context.
+    """
+
     @wraps(fn)
     def tansaction_wrapper(*args, **kwargs):
         obj_self = args[0]
@@ -35,7 +39,7 @@ def transactional(fn: Callable) -> Callable:
 
         return ctx._run_transaction(
             lambda: fn(obj_self, *args[1:], ctx=ctx, **kwargs),
-            is_subcontext=kwargs.get("ctx", None) is None,
+            is_subcontext=kwargs.get("ctx", None) is not None,
         )
 
     return tansaction_wrapper
@@ -73,7 +77,7 @@ class AbstractDao(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def delete(self, id: Optional[Union[UUID, str]], *args, **kwargs):
+    def delete(self, id: Optional[Union[UUID, str]], *args, **kwargs) -> Optional[int]:
         pass
 
     @property

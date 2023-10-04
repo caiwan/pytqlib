@@ -29,7 +29,7 @@ def pytest_addoption(parser):
 
     parser.addoption(
         "--integration",
-        choices=["nodb", "redis", "mongo", "all"],
+        choices=["nodb", "redis", "mongo", "neo4j" "all"],
         default=None,
         help="run only integration tests",
     )
@@ -100,11 +100,18 @@ def pytest_collection_modifyitems(config, items):
             if "unittest" in item.keywords:
                 item.add_marker(skip_unittest)
 
+            # Use @pytest.mark.mongo
             if "mongo" in item.keywords:
                 if choice == "redis" and choice != "all":
                     item.add_marker(skip_mongo)
 
+            # Use @pytest.mark.redis
             if "redis" in item.keywords:
+                if choice == "mongo" and choice != "all":
+                    item.add_marker(skip_redis)
+
+            # Use @pytest.mark.neo4j
+            if "neo4j" in item.keywords:
                 if choice == "mongo" and choice != "all":
                     item.add_marker(skip_redis)
 

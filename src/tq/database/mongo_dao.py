@@ -157,14 +157,15 @@ class MongoDaoContext(BaseContext):
     ) -> Optional[Any]:
         if is_subcontext:
             return fn()
-        else:
-            for attempt in range(3):
-                try:
-                    with self:
-                        return fn()
-                except errors.PyMongoError as e:
-                    if attempt == 2:
-                        raise e
+        # TODO: Config Attempt
+
+        for attempt in range(3):
+            try:
+                with self:
+                    return fn()
+            except errors.PyMongoError as e:
+                if attempt == 2:
+                    raise e
 
 
 class BaseMongoDao(AbstractDao):
