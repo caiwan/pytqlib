@@ -69,7 +69,8 @@ def test_bulk_create_or_update(dummy_node_dao):
     results = dummy_node_dao.bulk_create_or_update(entities)
     assert all(isinstance(res, UUID) for res in results)
 
-    # TODO: Iterate all
+    for key in dummy_node_dao.iterate_all_keys():
+        assert key in results
 
     for retrieved_entity in dummy_node_dao.iterate_all():
         assert retrieved_entity is not None
