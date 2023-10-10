@@ -81,3 +81,46 @@ def test_bulk_create_or_update(dummy_node_dao):
         )
 
         assert retrieved_entity.to_dict() == entity.to_dict()
+
+
+@pytest.mark.neo4j
+def test_create_connection(dummy_node_dao):
+    entities = [
+        DummyNode(
+            id=None,
+            name="Alice",
+            age=20,
+            weight=50.0,
+        ),
+        DummyNode(
+            id=None,
+            name="Bob",
+            age=30,
+            weight=60.0,
+        ),
+    ]
+
+    results = dummy_node_dao.bulk_create_or_update(entities)
+    assert all(isinstance(res, UUID) for res in results)
+
+    dummy_node_dao.make_connection(entities[0], entities[1], connection_type="KNOWS")
+    connecting_nodes = dummy_node_dao.get_connected_nodes(
+        entities[0], connection_type="KNOWS"
+    )
+    assert len(connecting_nodes) == 1
+
+    connecting_nodes = dummy_node_dao.get_connected_nodes(
+        entities[1], connection_type="KNOWS"
+    )
+    assert len(connecting_nodes) == 1
+
+    dummy_node_dao.remove_connection(entities[0], entities[1], connection_type="KNOWS")
+    connecting_nodes = dummy_node_dao.get_connected_nodes(
+        entities[0], connection_type="KNOWS"
+    )
+    assert len(connecting_nodes) == 0
+
+    connecting_nodes = dummy_node_dao.get_connected_nodes(
+        entities[1], connection_type="KNOWS"
+    )
+    assert len(connecting_nodes) == 0

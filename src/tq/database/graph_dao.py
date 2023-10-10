@@ -243,12 +243,31 @@ class Neo4jDao(AbstractDao):
     @transactional
     def make_connection(
         self,
-        src: BaseEntity,
+        src: BaseEntity, # TODO: Use UUID (?) instead of BaseEntity
         tgt: BaseEntity,
         ctx: Neo4jContext,
-        connection_type: str = "",
-        connection_data: Optional[BaseEntity] = None,
+        connection_type: Optional[str] = None,
+        # TODO: add connection data # connection_data: Optional[BaseEntity] = None,
     ):
+        pass
+
+    @transactional
+    def remove_connection(
+        self,
+        src: BaseEntity, # TODO: Use UUID (?) instead of BaseEntity
+        tgt: BaseEntity,
+        ctx: Neo4jContext,
+        connection_type: Optional[str] = None,
+    ):
+        pass
+
+    @transactional
+    def get_connections(
+        self,
+        src: BaseEntity, # TODO: Use UUID (?) instead of BaseEntity
+        ctx: Neo4jContext,
+        connection_type: Optional[str] = None,
+    ) -> List[BaseEntity]:
         pass
 
     def _create_context(self, ctx: Optional[BaseContext] = None) -> BaseContext:
