@@ -1,5 +1,17 @@
 from contextlib import ExitStack
-from typing import Any, Callable, Dict, Type, Optional, Union, Iterable, List, Iterator
+import logging
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Tuple,
+    Type,
+    Optional,
+    Union,
+    Iterable,
+    List,
+    Iterator,
+)
 from uuid import UUID, uuid4
 import dataclasses_json
 from marshmallow import Schema
@@ -8,6 +20,8 @@ import networkx as nx
 from py2neo import Graph, Node, Relationship, NodeMatcher
 
 from tq.database.db import AbstractDao, BaseEntity, transactional, BaseContext
+
+LOGGER = logging.getLogger(__name__)
 
 
 class DataClassJsonGraphNodeMixin(dataclasses_json.DataClassJsonMixin):
@@ -139,6 +153,78 @@ class Neo4jContext(BaseContext):
             count += 1
         return count
 
+    def create_or_update_connection(
+        self,
+        src_id: UUID,
+        tgt_id: UUID,
+        connection_type: str,
+        connection_data: Optional[BaseEntity] = None,
+    ):
+        src_node = self.matcher.match(id=str(src_id)).first()
+        tgt_node = self.matcher.match(id=str(tgt_id)).first()
+
+        if src_node is None or tgt_node is None:
+            raise RuntimeError("Source or target node not found")
+
+        rel = self.graph.match_one(nodes=(src_node, tgt_node), r_type=connection_type)
+
+        if rel is None:
+            rel = Relationship(src_node, connection_type, tgt_node)
+            if connection_data is not None:
+                rel.update(self.sanitize(connection_data.to_dict()))
+            self.tx.create(rel)
+        else:
+            if connection_data is not None:
+                rel.update(self.sanitize(connection_data.to_dict()))
+            else:
+                rel.update({})
+            self.tx.push(rel)
+
+    def remove_relationship(
+        self,
+        src_id: UUID,
+        tgt_id: UUID,
+        connection_type: str,
+    ):
+        src_node = self.matcher.match(id=str(src_id)).first()
+        tgt_node = self.matcher.match(id=str(tgt_id)).first()
+
+        if src_node is None or tgt_node is None:
+            raise RuntimeError("Source or target node not found")
+
+        rel = self.graph.match_one(nodes=(src_node, tgt_node), r_type=connection_type)
+        if rel is not None:
+            self.tx.delete(rel)
+
+    def iterate_connections(
+        self,
+        node_id: UUID,
+        connection_type: Optional[str] = None,
+        bidirectional: bool = False,
+    ) -> Iterable[Tuple[str, Dict, Optional[Dict]]]:
+        node = self.matcher.match("Entity", id=str(node_id)).first()
+
+        if not node:
+            return []
+
+        relationships = (
+            self.matcher.match((node,), r_type=connection_type)
+            if connection_type
+            else self.matcher.match((node,))
+        )
+        for rel in relationships:
+            yield rel.type, self.desanitize(dict(rel))
+
+        # Get incoming connections if bidirectional is True
+        if bidirectional:
+            relationships = (
+                self.matcher.match((None, node), r_type=connection_type)
+                if connection_type
+                else self.matcher.match((None, node))
+            )
+            for rel in relationships:
+                yield rel.type, self.desanitize(dict(rel))
+
     # def store_graph(self, G: nx.Graph):
     #     # TODO: Merge with existing graph
     #     for node, data in G.nodes(data=True):
@@ -241,48 +327,34 @@ class Neo4jDao(AbstractDao):
         return ctx.delete(self.schema.__name__, match={"id": id}, limit=1)
 
     @transactional
-    class GraphDao:
-        # existing code here
+    def create_or_update_connection(
+        self,
+        src_id: UUID,
+        tgt_id: UUID,
+        # *args,
+        ctx: Neo4jContext,
+        connection_type: Optional[str] = None,
+        connection_data: Optional[BaseEntity] = None,
+    ):
+        if connection_type is None:
+            connection_type = "CONNECTS"
 
-        @transactional
-        def make_connection(
-            self,
-            src: BaseEntity,
-            tgt: BaseEntity,
-            ctx: Neo4jContext,
-            connection_type: Optional[str] = None,
-            connection_data: Optional[BaseEntity] = None,
-        ):
-            if connection_type is None:
-                connection_type = "CONNECTED_TO"
-
-            # query = (
-            #     f"MATCH (src:{src.__class__.__name__} {{id: '{src.id}'}}), "
-            #     f"(tgt:{tgt.__class__.__name__} {{id: '{tgt.id}'}}) "
-            #     f"CREATE (src)-[:{connection_type} {{data: $data}}]->(tgt)"
-            # )
-
-            # self._graph.run(query, data=connection_data.to_dict())
-            pass
+        ctx.create_or_update_connection(
+            src_id, tgt_id, connection_type, connection_data
+        )
 
     @transactional
     def remove_connection(
         self,
-        src: BaseEntity,  # TODO: Use UUID (?) instead of BaseEntity
-        tgt: BaseEntity,
+        src_id: UUID,
+        tgt_id: UUID,
         ctx: Neo4jContext,
         connection_type: Optional[str] = None,
     ):
-        pass
+        if connection_type is None:
+            connection_type = "CONNECTS"
 
-    @transactional
-    def get_connections(
-        self,
-        src: BaseEntity,  # TODO: Use UUID (?) instead of BaseEntity
-        ctx: Neo4jContext,
-        connection_type: Optional[str] = None,
-    ) -> List[BaseEntity]:
-        pass
+        ctx.remove_relationship(src_id, tgt_id, connection_type)
 
     @transactional
     def get_connected_nodes(
@@ -290,8 +362,10 @@ class Neo4jDao(AbstractDao):
         src: BaseEntity,  # TODO: Use UUID (?) instead of BaseEntity
         ctx: Neo4jContext,
         connection_type: Optional[str] = None,
-    ) -> List[BaseEntity]:
-        pass
+        bidirectional: bool = False,
+    ) -> List[Tuple[str, BaseEntity, Optional[BaseEntity]]]:
+        # TODO: Implement
+        raise NotImplementedError()
 
     def _create_context(self, ctx: Optional[BaseContext] = None) -> BaseContext:
-        return Neo4jContext(self._graph)
+        return ctx or Neo4jContext(self._graph)

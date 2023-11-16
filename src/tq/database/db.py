@@ -1,4 +1,5 @@
 import abc
+import logging
 import tempfile
 from dataclasses import dataclass
 from functools import wraps
@@ -8,6 +9,8 @@ from uuid import UUID
 
 from dataclasses_json import DataClassJsonMixin
 from marshmallow import Schema
+
+LOGGER = logging.getLogger(__name__)
 
 
 # TODO: id becomes _id in [mongo]
@@ -34,12 +37,18 @@ def transactional(fn: Callable) -> Callable:
         obj_self = args[0]
         ctx: BaseContext = obj_self._create_context(kwargs.get("ctx"))
 
+        is_subcontext = kwargs.get("ctx", None) is not None
         if "ctx" in kwargs:
             del kwargs["ctx"]
 
+        def fasz(fn_, *args, **kwargs):
+            LOGGER.debug(f"Running {fn_} in transactional context {args}, {kwargs}")
+            return fn_(*args, **kwargs)
+
         return ctx._run_transaction(
-            lambda: fn(obj_self, *args[1:], ctx=ctx, **kwargs),
-            is_subcontext=kwargs.get("ctx", None) is not None,
+            lambda: fasz(fn, obj_self, *args[1:], ctx=ctx, **kwargs),
+            # lambda: fn(obj_self, *args[1:], ctx=ctx, **kwargs),
+            is_subcontext=is_subcontext,
         )
 
     return tansaction_wrapper

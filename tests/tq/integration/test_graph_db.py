@@ -103,24 +103,38 @@ def test_create_connection(dummy_node_dao):
     results = dummy_node_dao.bulk_create_or_update(entities)
     assert all(isinstance(res, UUID) for res in results)
 
-    dummy_node_dao.make_connection(entities[0], entities[1], connection_type="KNOWS")
+    dummy_node_dao.create_or_update_connection(
+        entities[0].id,
+        entities[1].id,
+        connection_type="KNOWS",
+    )
     connecting_nodes = dummy_node_dao.get_connected_nodes(
-        entities[0], connection_type="KNOWS"
+        entities[0].id,
+        connection_type="KNOWS",
+        bidirectional=True,
     )
     assert len(connecting_nodes) == 1
 
     connecting_nodes = dummy_node_dao.get_connected_nodes(
-        entities[1], connection_type="KNOWS"
+        entities[1].id,
+        connection_type="KNOWS",
+        bidirectional=True,
     )
     assert len(connecting_nodes) == 1
 
-    dummy_node_dao.remove_connection(entities[0], entities[1], connection_type="KNOWS")
+    dummy_node_dao.remove_connection(
+        entities[0].id,
+        entities[1].id,
+        connection_type="KNOWS",
+    )
     connecting_nodes = dummy_node_dao.get_connected_nodes(
-        entities[0], connection_type="KNOWS"
+        entities[0],
+        connection_type="KNOWS",
     )
     assert len(connecting_nodes) == 0
 
     connecting_nodes = dummy_node_dao.get_connected_nodes(
-        entities[1], connection_type="KNOWS"
+        entities[1].id,
+        connection_type="KNOWS",
     )
     assert len(connecting_nodes) == 0
