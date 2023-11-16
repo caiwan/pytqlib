@@ -241,20 +241,34 @@ class Neo4jDao(AbstractDao):
         return ctx.delete(self.schema.__name__, match={"id": id}, limit=1)
 
     @transactional
-    def make_connection(
-        self,
-        src: BaseEntity, # TODO: Use UUID (?) instead of BaseEntity
-        tgt: BaseEntity,
-        ctx: Neo4jContext,
-        connection_type: Optional[str] = None,
-        # TODO: add connection data # connection_data: Optional[BaseEntity] = None,
-    ):
-        pass
+    class GraphDao:
+        # existing code here
+
+        @transactional
+        def make_connection(
+            self,
+            src: BaseEntity,
+            tgt: BaseEntity,
+            ctx: Neo4jContext,
+            connection_type: Optional[str] = None,
+            connection_data: Optional[BaseEntity] = None,
+        ):
+            if connection_type is None:
+                connection_type = "CONNECTED_TO"
+
+            # query = (
+            #     f"MATCH (src:{src.__class__.__name__} {{id: '{src.id}'}}), "
+            #     f"(tgt:{tgt.__class__.__name__} {{id: '{tgt.id}'}}) "
+            #     f"CREATE (src)-[:{connection_type} {{data: $data}}]->(tgt)"
+            # )
+
+            # self._graph.run(query, data=connection_data.to_dict())
+            pass
 
     @transactional
     def remove_connection(
         self,
-        src: BaseEntity, # TODO: Use UUID (?) instead of BaseEntity
+        src: BaseEntity,  # TODO: Use UUID (?) instead of BaseEntity
         tgt: BaseEntity,
         ctx: Neo4jContext,
         connection_type: Optional[str] = None,
@@ -264,7 +278,16 @@ class Neo4jDao(AbstractDao):
     @transactional
     def get_connections(
         self,
-        src: BaseEntity, # TODO: Use UUID (?) instead of BaseEntity
+        src: BaseEntity,  # TODO: Use UUID (?) instead of BaseEntity
+        ctx: Neo4jContext,
+        connection_type: Optional[str] = None,
+    ) -> List[BaseEntity]:
+        pass
+
+    @transactional
+    def get_connected_nodes(
+        self,
+        src: BaseEntity,  # TODO: Use UUID (?) instead of BaseEntity
         ctx: Neo4jContext,
         connection_type: Optional[str] = None,
     ) -> List[BaseEntity]:
